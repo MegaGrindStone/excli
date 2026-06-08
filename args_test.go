@@ -25,6 +25,16 @@ func TestParseArgs(t *testing.T) {
 			},
 		},
 		{
+			name: "sheet info valid",
+			args: []string{"sheet", "info", "book.xlsx", "--sheet", "Budget"},
+			want: parsedArgs{
+				resource: "sheet",
+				action:   "info",
+				file:     "book.xlsx",
+				sheet:    "Budget",
+			},
+		},
+		{
 			name: "range read valid with pretty",
 			args: []string{"range", "read", "book.xlsx", "--sheet", "Budget", "--range", "b2:a1", "--pretty"},
 			want: parsedArgs{

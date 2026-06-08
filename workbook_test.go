@@ -33,6 +33,31 @@ func TestSheetSummaries(t *testing.T) {
 	}
 }
 
+func TestSheetDetailFromInfo(t *testing.T) {
+	t.Parallel()
+
+	sheet := sheetInfo{
+		index:     2,
+		id:        9,
+		name:      "Budget",
+		visible:   true,
+		dimension: "A1:D10",
+	}
+
+	got := sheetDetailFromInfo(sheet)
+	want := sheetDetail{
+		Index:     2,
+		ID:        9,
+		Name:      "Budget",
+		Visible:   true,
+		Dimension: "A1:D10",
+	}
+
+	if got != want {
+		t.Fatalf("sheetDetailFromInfo = %#v, want %#v", got, want)
+	}
+}
+
 func TestRunWorkbookInfoMissingFile(t *testing.T) {
 	t.Parallel()
 
@@ -43,6 +68,12 @@ func TestRunSheetListMissingFilePretty(t *testing.T) {
 	t.Parallel()
 
 	assertRuntimeJSONErrorForMissingWorkbook(t, []string{"sheet", "list", "--pretty"})
+}
+
+func TestRunSheetInfoMissingFile(t *testing.T) {
+	t.Parallel()
+
+	assertRuntimeJSONErrorForMissingWorkbook(t, []string{"sheet", "info", "--sheet", "Budget"})
 }
 
 func TestReadWorkbookInfoUsesUserPath(t *testing.T) {

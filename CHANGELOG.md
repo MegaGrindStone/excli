@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Added a testable Excel CLI runner with help output, structured JSON success/error responses, and compact or pretty formatting.
 - Added workbook inspection commands for workbook metadata and sheet listings backed by `excelize`.
+- Added a `sheet info` command that returns metadata for a single worksheet, including its visibility and dimension range.
 - Added argument validation and normalization for workbook, sheet, cell, and range commands, including cell/range reference handling and range-size limits.
 - Added unit test coverage for argument parsing, JSON output, CLI execution, workbook helpers, cell references, and range parsing.
 

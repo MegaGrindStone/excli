@@ -57,8 +57,6 @@ func listWorkbookSheets(file *excelize.File) ([]sheetInfo, error) {
 }
 
 // lookupSheetInfo resolves sheet metadata for one sheet name.
-//
-//nolint:unused // Reserved for later.
 func lookupSheetInfo(file *excelize.File, sheet string) (sheetInfo, error) {
 	index, err := file.GetSheetIndex(sheet)
 	if err != nil {

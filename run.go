@@ -102,11 +102,6 @@ func dispatch(cmd parsedArgs, stdout, stderr io.Writer) int {
 	}
 }
 
-// runSheetInfo returns the current placeholder result for sheet info.
-func runSheetInfo(cmd parsedArgs, _ io.Writer, stderr io.Writer) int {
-	return writePlaceholderError(stderr, cmd, "sheet info")
-}
-
 // runCellRead returns the current placeholder result for cell reads.
 func runCellRead(cmd parsedArgs, _ io.Writer, stderr io.Writer) int {
 	return writePlaceholderError(stderr, cmd, "cell read")
