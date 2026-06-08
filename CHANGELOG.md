@@ -7,3 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Introduced `excli`, a Go CLI for read-only inspection of local `.xlsx` workbooks.
+- Added `workbook info`, `sheet list`, `sheet info`, `cell read`, and `range read` commands with deterministic JSON output.
+- Added top-level help, compact/pretty JSON formatting, structured JSON error payloads, and documented exit codes.
+- Added cell and range reference validation/normalization, including a 10,000-cell safety limit for range reads.
+
