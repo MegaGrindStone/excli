@@ -2,17 +2,24 @@ package main
 
 import (
 	"fmt"
+	"io"
 
 	"github.com/xuri/excelize/v2"
 )
 
-// cellData holds a cell read result.
-//
-//nolint:unused // Reserved for later.
-type cellData struct {
-	cell    string
-	value   string
-	formula string
+// cellValue is the JSON shape for one addressed cell.
+type cellValue struct {
+	Cell    string `json:"cell"`
+	Value   string `json:"value"`
+	Formula string `json:"formula,omitempty"`
+}
+
+// cellReadResult is the success payload for cell read.
+type cellReadResult struct {
+	File  string `json:"file"`
+	Sheet string `json:"sheet"`
+
+	cellValue
 }
 
 // normalizeCellRef canonicalizes an A1-style cell reference.
@@ -30,28 +37,80 @@ func normalizeCellRef(cell string) (string, error) {
 	return normalized, nil
 }
 
+// runCellRead executes the cell read command.
+func runCellRead(cmd parsedArgs, stdout io.Writer, stderr io.Writer) int {
+	result, err := readCellResult(cmd.file, cmd.sheet, cmd.cell)
+	if err != nil {
+		return writeRuntimeError(stderr, cmd.pretty, err)
+	}
+
+	if err := writeJSON(stdout, result, cmd.pretty); err != nil {
+		return writeRuntimeError(stderr, cmd.pretty, err)
+	}
+
+	return exitSuccess
+}
+
+// readCellResult builds the cell read result for a file, sheet, and cell.
+func readCellResult(path, sheetName, cell string) (cellReadResult, error) {
+	file, err := openWorkbook(path)
+	if err != nil {
+		return cellReadResult{}, err
+	}
+
+	result, readErr := readCellResultFromWorkbook(file, path, sheetName, cell)
+	closeErr := closeWorkbook(file)
+	if err := workbookReadError(readErr, closeErr); err != nil {
+		return cellReadResult{}, err
+	}
+
+	return result, nil
+}
+
+// readCellResultFromWorkbook reads one cell from an opened workbook.
+func readCellResultFromWorkbook(
+	file *excelize.File,
+	path string,
+	sheetName string,
+	cell string,
+) (cellReadResult, error) {
+	_, sheet, err := resolveSheet(file, sheetName)
+	if err != nil {
+		return cellReadResult{}, err
+	}
+
+	value, err := readCell(file, sheet, cell)
+	if err != nil {
+		return cellReadResult{}, err
+	}
+
+	return cellReadResult{
+		File:      path,
+		Sheet:     sheetName,
+		cellValue: value,
+	}, nil
+}
+
 // readCell reads a normalized cell value and formula.
-//
-//nolint:unused // Reserved for later.
-func readCell(file *excelize.File, sheet, cell string) (cellData, error) {
+func readCell(file *excelize.File, sheet, cell string) (cellValue, error) {
 	normalized, err := normalizeCellRef(cell)
 	if err != nil {
-		return cellData{}, err
+		return cellValue{}, err
 	}
 
 	value, err := file.GetCellValue(sheet, normalized)
 	if err != nil {
-		return cellData{}, fmt.Errorf("read cell value for %q in %q: %w", normalized, sheet, err)
+		return cellValue{}, fmt.Errorf("read cell value for %q in %q: %w", normalized, sheet, err)
 	}
 
 	formula, err := file.GetCellFormula(sheet, normalized)
 	if err != nil {
-		return cellData{}, fmt.Errorf("read cell formula for %q in %q: %w", normalized, sheet, err)
+		return cellValue{}, fmt.Errorf("read cell formula for %q in %q: %w", normalized, sheet, err)
 	}
 
-	return cellData{
-		cell:    normalized,
-		value:   value,
-		formula: formula,
+	return cellValue{
+		Cell:    normalized,
+		Value:   value,
+		Formula: formula,
 	}, nil
 }

@@ -2,6 +2,36 @@ package main
 
 import "testing"
 
+func TestRangeReadResultJSON(t *testing.T) {
+	t.Parallel()
+
+	result := rangeReadResult{
+		File:  "book.xlsx",
+		Sheet: "Sheet1",
+		Range: "A1:B2",
+		Cells: []cellValue{
+			{Cell: "A1", Value: "Name"},
+			{Cell: "B1", Value: "Total"},
+			{Cell: "A2", Value: "Alpha"},
+			{Cell: "B2", Value: "100", Formula: "SUM(A2:A3)"},
+		},
+	}
+
+	jsonBytes, err := marshalJSON(result, false)
+	if err != nil {
+		t.Fatalf("marshalJSON returned error: %v", err)
+	}
+
+	want := "{\"file\":\"book.xlsx\",\"sheet\":\"Sheet1\",\"range\":\"A1:B2\",\"cells\":[" +
+		"{\"cell\":\"A1\",\"value\":\"Name\"}," +
+		"{\"cell\":\"B1\",\"value\":\"Total\"}," +
+		"{\"cell\":\"A2\",\"value\":\"Alpha\"}," +
+		"{\"cell\":\"B2\",\"value\":\"100\",\"formula\":\"SUM(A2:A3)\"}]}\n"
+	if string(jsonBytes) != want {
+		t.Fatalf("range read JSON = %q, want %q", string(jsonBytes), want)
+	}
+}
+
 func TestParseCellRange(t *testing.T) {
 	t.Parallel()
 

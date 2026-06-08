@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/xuri/excelize/v2"
@@ -18,6 +19,94 @@ type cellRange struct {
 	endRow   int
 	ref      string
 	count    int
+}
+
+// rangeReadResult is the success payload for range read.
+type rangeReadResult struct {
+	File  string      `json:"file"`
+	Sheet string      `json:"sheet"`
+	Range string      `json:"range"`
+	Cells []cellValue `json:"cells"`
+}
+
+// runRangeRead executes the range read command.
+func runRangeRead(cmd parsedArgs, stdout io.Writer, stderr io.Writer) int {
+	rng, err := parseCellRange(cmd.cellRange)
+	if err != nil {
+		return writeUsageError(stderr, cmd.pretty, err)
+	}
+
+	result, err := readRangeResult(cmd.file, cmd.sheet, rng)
+	if err != nil {
+		return writeRuntimeError(stderr, cmd.pretty, err)
+	}
+
+	if err := writeJSON(stdout, result, cmd.pretty); err != nil {
+		return writeRuntimeError(stderr, cmd.pretty, err)
+	}
+
+	return exitSuccess
+}
+
+// readRangeResult builds the range read result for a file, sheet, and range.
+func readRangeResult(path, sheetName string, rng cellRange) (rangeReadResult, error) {
+	file, err := openWorkbook(path)
+	if err != nil {
+		return rangeReadResult{}, err
+	}
+
+	result, readErr := readRangeResultFromWorkbook(file, path, sheetName, rng)
+	closeErr := closeWorkbook(file)
+	if err := workbookReadError(readErr, closeErr); err != nil {
+		return rangeReadResult{}, err
+	}
+
+	return result, nil
+}
+
+// readRangeResultFromWorkbook reads one cell range from an opened workbook.
+func readRangeResultFromWorkbook(
+	file *excelize.File,
+	path string,
+	sheetName string,
+	rng cellRange,
+) (rangeReadResult, error) {
+	_, sheet, err := resolveSheet(file, sheetName)
+	if err != nil {
+		return rangeReadResult{}, err
+	}
+
+	cells, err := readRangeCells(file, sheet, rng)
+	if err != nil {
+		return rangeReadResult{}, err
+	}
+
+	return rangeReadResult{
+		File:  path,
+		Sheet: sheet,
+		Range: rng.ref,
+		Cells: cells,
+	}, nil
+}
+
+// readRangeCells reads all cells addressed by a range in row-major order.
+func readRangeCells(file *excelize.File, sheet string, rng cellRange) ([]cellValue, error) {
+	names, err := rng.cellNames()
+	if err != nil {
+		return nil, err
+	}
+
+	cells := make([]cellValue, 0, len(names))
+	for _, name := range names {
+		value, err := readCell(file, sheet, name)
+		if err != nil {
+			return nil, err
+		}
+
+		cells = append(cells, value)
+	}
+
+	return cells, nil
 }
 
 // parseCellRange validates and normalizes a cell range reference.

@@ -8,53 +8,26 @@ import (
 	"testing"
 )
 
-func TestSheetSummaries(t *testing.T) {
+func TestOpenWorkbookMissingFile(t *testing.T) {
 	t.Parallel()
 
-	sheets := []sheetInfo{
-		{index: 0, id: 1, name: "Sheet1", visible: true, dimension: "A1:B2"},
-		{index: 1, id: 7, name: "Hidden", visible: false, dimension: "A1"},
+	path := filepath.Join(t.TempDir(), "missing.xlsx")
+
+	_, err := openWorkbook(path)
+	if err == nil {
+		t.Fatal("openWorkbook error = nil, want non-nil")
 	}
 
-	got := sheetSummaries(sheets)
-	want := []sheetSummary{
-		{Index: 0, ID: 1, Name: "Sheet1", Visible: true},
-		{Index: 1, ID: 7, Name: "Hidden", Visible: false},
-	}
-
-	if len(got) != len(want) {
-		t.Fatalf("len(sheetSummaries) = %d, want %d", len(got), len(want))
-	}
-
-	for i := range got {
-		if got[i] != want[i] {
-			t.Fatalf("sheetSummaries[%d] = %#v, want %#v", i, got[i], want[i])
-		}
+	if !strings.Contains(err.Error(), "open workbook") {
+		t.Fatalf("error message = %q, want to contain %q", err.Error(), "open workbook")
 	}
 }
 
-func TestSheetDetailFromInfo(t *testing.T) {
+func TestCloseWorkbookNil(t *testing.T) {
 	t.Parallel()
 
-	sheet := sheetInfo{
-		index:     2,
-		id:        9,
-		name:      "Budget",
-		visible:   true,
-		dimension: "A1:D10",
-	}
-
-	got := sheetDetailFromInfo(sheet)
-	want := sheetDetail{
-		Index:     2,
-		ID:        9,
-		Name:      "Budget",
-		Visible:   true,
-		Dimension: "A1:D10",
-	}
-
-	if got != want {
-		t.Fatalf("sheetDetailFromInfo = %#v, want %#v", got, want)
+	if err := closeWorkbook(nil); err != nil {
+		t.Fatalf("closeWorkbook(nil) returned error: %v", err)
 	}
 }
 
@@ -62,18 +35,6 @@ func TestRunWorkbookInfoMissingFile(t *testing.T) {
 	t.Parallel()
 
 	assertRuntimeJSONErrorForMissingWorkbook(t, []string{"workbook", "info"})
-}
-
-func TestRunSheetListMissingFilePretty(t *testing.T) {
-	t.Parallel()
-
-	assertRuntimeJSONErrorForMissingWorkbook(t, []string{"sheet", "list", "--pretty"})
-}
-
-func TestRunSheetInfoMissingFile(t *testing.T) {
-	t.Parallel()
-
-	assertRuntimeJSONErrorForMissingWorkbook(t, []string{"sheet", "info", "--sheet", "Budget"})
 }
 
 func TestReadWorkbookInfoUsesUserPath(t *testing.T) {

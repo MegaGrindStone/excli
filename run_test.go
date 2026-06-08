@@ -45,26 +45,16 @@ func TestRunWritesPrettyUsageError(t *testing.T) {
 	}
 }
 
-func TestRunDispatchesValidCommandToPlaceholder(t *testing.T) {
+func TestRunDispatchesCellReadMissingWorkbook(t *testing.T) {
 	t.Parallel()
 
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
+	assertRuntimeJSONErrorForMissingWorkbook(t, []string{"cell", "read", "--sheet", "Budget", "--cell", "A1"})
+}
 
-	exitCode := run([]string{"cell", "read", "book.xlsx", "--sheet", "Budget", "--cell", "A1"}, &stdout, &stderr)
+func TestRunDispatchesRangeReadMissingWorkbook(t *testing.T) {
+	t.Parallel()
 
-	if exitCode != exitRuntime {
-		t.Fatalf("exit code = %d, want %d", exitCode, exitRuntime)
-	}
-
-	if stdout.Len() != 0 {
-		t.Fatalf("stdout = %q, want empty", stdout.String())
-	}
-
-	want := "{\"error\":{\"code\":\"runtime_error\",\"message\":\"command not implemented: cell read\"}}\n"
-	if stderr.String() != want {
-		t.Fatalf("stderr = %q, want %q", stderr.String(), want)
-	}
+	assertRuntimeJSONErrorForMissingWorkbook(t, []string{"range", "read", "--sheet", "Budget", "--range", "A1:B2"})
 }
 
 func TestRunWritesHelp(t *testing.T) {

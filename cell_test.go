@@ -2,6 +2,53 @@ package main
 
 import "testing"
 
+func TestCellReadResultJSON(t *testing.T) {
+	t.Parallel()
+
+	result := cellReadResult{
+		File:  "book.xlsx",
+		Sheet: "Sheet1",
+		cellValue: cellValue{
+			Cell:  "A1",
+			Value: "",
+		},
+	}
+
+	jsonBytes, err := marshalJSON(result, false)
+	if err != nil {
+		t.Fatalf("marshalJSON returned error: %v", err)
+	}
+
+	want := "{\"file\":\"book.xlsx\",\"sheet\":\"Sheet1\",\"cell\":\"A1\",\"value\":\"\"}\n"
+	if string(jsonBytes) != want {
+		t.Fatalf("cell read JSON = %q, want %q", string(jsonBytes), want)
+	}
+}
+
+func TestCellReadResultJSONIncludesFormula(t *testing.T) {
+	t.Parallel()
+
+	result := cellReadResult{
+		File:  "book.xlsx",
+		Sheet: "Sheet1",
+		cellValue: cellValue{
+			Cell:    "C2",
+			Value:   "150",
+			Formula: "SUM(A2:B2)",
+		},
+	}
+
+	jsonBytes, err := marshalJSON(result, false)
+	if err != nil {
+		t.Fatalf("marshalJSON returned error: %v", err)
+	}
+
+	want := "{\"file\":\"book.xlsx\",\"sheet\":\"Sheet1\",\"cell\":\"C2\",\"value\":\"150\",\"formula\":\"SUM(A2:B2)\"}\n"
+	if string(jsonBytes) != want {
+		t.Fatalf("cell read JSON = %q, want %q", string(jsonBytes), want)
+	}
+}
+
 func TestNormalizeCellRef(t *testing.T) {
 	t.Parallel()
 

@@ -1,32 +1,19 @@
 package main
 
 import (
-	"path/filepath"
-	"strings"
 	"testing"
 )
 
-func TestOpenWorkbookMissingFile(t *testing.T) {
+func TestRunSheetListMissingFilePretty(t *testing.T) {
 	t.Parallel()
 
-	path := filepath.Join(t.TempDir(), "missing.xlsx")
-
-	_, err := openWorkbook(path)
-	if err == nil {
-		t.Fatal("openWorkbook error = nil, want non-nil")
-	}
-
-	if !strings.Contains(err.Error(), "open workbook") {
-		t.Fatalf("error message = %q, want to contain %q", err.Error(), "open workbook")
-	}
+	assertRuntimeJSONErrorForMissingWorkbook(t, []string{"sheet", "list", "--pretty"})
 }
 
-func TestCloseWorkbookNil(t *testing.T) {
+func TestRunSheetInfoMissingFile(t *testing.T) {
 	t.Parallel()
 
-	if err := closeWorkbook(nil); err != nil {
-		t.Fatalf("closeWorkbook(nil) returned error: %v", err)
-	}
+	assertRuntimeJSONErrorForMissingWorkbook(t, []string{"sheet", "info", "--sheet", "Budget"})
 }
 
 func TestLookupSheetID(t *testing.T) {

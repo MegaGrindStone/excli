@@ -3,24 +3,9 @@ package main
 import (
 	"fmt"
 	"io"
+
+	"github.com/xuri/excelize/v2"
 )
-
-// sheetSummary describes one workbook sheet summary in JSON output.
-type sheetSummary struct {
-	Index   int    `json:"index"`
-	ID      int    `json:"id"`
-	Name    string `json:"name"`
-	Visible bool   `json:"visible"`
-}
-
-// sheetDetail describes one workbook sheet with sheet-specific details.
-type sheetDetail struct {
-	Index     int    `json:"index"`
-	ID        int    `json:"id"`
-	Name      string `json:"name"`
-	Visible   bool   `json:"visible"`
-	Dimension string `json:"dimension"`
-}
 
 // workbookInfoResult is the success payload for workbook info.
 type workbookInfoResult struct {
@@ -29,49 +14,32 @@ type workbookInfoResult struct {
 	Sheets     []sheetSummary `json:"sheets"`
 }
 
-// sheetListResult is the success payload for sheet list.
-type sheetListResult struct {
-	File   string         `json:"file"`
-	Sheets []sheetSummary `json:"sheets"`
+// openWorkbook opens an .xlsx workbook from disk.
+func openWorkbook(path string) (*excelize.File, error) {
+	file, err := excelize.OpenFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("open workbook %q: %w", path, err)
+	}
+
+	return file, nil
 }
 
-// sheetInfoResult is the success payload for sheet info.
-type sheetInfoResult struct {
-	File  string      `json:"file"`
-	Sheet sheetDetail `json:"sheet"`
+// closeWorkbook closes an opened workbook when present.
+func closeWorkbook(file *excelize.File) error {
+	if file == nil {
+		return nil
+	}
+
+	if err := file.Close(); err != nil {
+		return fmt.Errorf("close workbook: %w", err)
+	}
+
+	return nil
 }
 
 // runWorkbookInfo executes the workbook info command.
 func runWorkbookInfo(cmd parsedArgs, stdout io.Writer, stderr io.Writer) int {
 	result, err := readWorkbookInfo(cmd.file)
-	if err != nil {
-		return writeRuntimeError(stderr, cmd.pretty, err)
-	}
-
-	if err := writeJSON(stdout, result, cmd.pretty); err != nil {
-		return writeRuntimeError(stderr, cmd.pretty, err)
-	}
-
-	return exitSuccess
-}
-
-// runSheetList executes the sheet list command.
-func runSheetList(cmd parsedArgs, stdout io.Writer, stderr io.Writer) int {
-	result, err := readSheetList(cmd.file)
-	if err != nil {
-		return writeRuntimeError(stderr, cmd.pretty, err)
-	}
-
-	if err := writeJSON(stdout, result, cmd.pretty); err != nil {
-		return writeRuntimeError(stderr, cmd.pretty, err)
-	}
-
-	return exitSuccess
-}
-
-// runSheetInfo executes the sheet info command.
-func runSheetInfo(cmd parsedArgs, stdout io.Writer, stderr io.Writer) int {
-	result, err := readSheetInfo(cmd.file, cmd.sheet)
 	if err != nil {
 		return writeRuntimeError(stderr, cmd.pretty, err)
 	}
@@ -97,102 +65,19 @@ func readWorkbookInfo(path string) (workbookInfoResult, error) {
 	}, nil
 }
 
-// readSheetList builds the sheet list result for a file.
-func readSheetList(path string) (sheetListResult, error) {
-	sheets, err := readWorkbookSheets(path)
-	if err != nil {
-		return sheetListResult{}, err
-	}
-
-	return sheetListResult{
-		File:   path,
-		Sheets: sheetSummaries(sheets),
-	}, nil
-}
-
-// readSheetInfo builds the sheet info result for a file and sheet name.
-func readSheetInfo(path, sheetName string) (sheetInfoResult, error) {
-	file, err := openWorkbook(path)
-	if err != nil {
-		return sheetInfoResult{}, err
-	}
-
-	sheet, readErr := lookupSheetInfo(file, sheetName)
-	closeErr := closeWorkbook(file)
+// workbookReadError combines read and close errors from workbook operations.
+func workbookReadError(readErr, closeErr error) error {
 	if readErr != nil {
 		if closeErr != nil {
-			return sheetInfoResult{}, fmt.Errorf("%w; %s", readErr, closeErr.Error())
+			return fmt.Errorf("%w; %s", readErr, closeErr.Error())
 		}
 
-		return sheetInfoResult{}, readErr
+		return readErr
 	}
 
 	if closeErr != nil {
-		return sheetInfoResult{}, closeErr
+		return closeErr
 	}
 
-	return sheetInfoResult{
-		File:  path,
-		Sheet: sheetDetailFromInfo(sheet),
-	}, nil
-}
-
-// readWorkbookSheets loads sheet metadata from a workbook file.
-func readWorkbookSheets(path string) ([]sheetInfo, error) {
-	file, err := openWorkbook(path)
-	if err != nil {
-		return nil, err
-	}
-
-	sheets, readErr := listWorkbookSheets(file)
-	closeErr := closeWorkbook(file)
-	if readErr != nil {
-		if closeErr != nil {
-			return nil, fmt.Errorf("%w; %s", readErr, closeErr.Error())
-		}
-
-		return nil, readErr
-	}
-
-	if closeErr != nil {
-		return nil, closeErr
-	}
-
-	return sheets, nil
-}
-
-// sheetSummaries converts workbook sheet metadata to JSON summaries.
-func sheetSummaries(sheets []sheetInfo) []sheetSummary {
-	summaries := make([]sheetSummary, 0, len(sheets))
-
-	for _, sheet := range sheets {
-		summaries = append(summaries, sheetSummary{
-			Index:   sheet.index,
-			ID:      sheet.id,
-			Name:    sheet.name,
-			Visible: sheet.visible,
-		})
-	}
-
-	return summaries
-}
-
-// sheetDetailFromInfo converts workbook sheet metadata to a JSON detail.
-func sheetDetailFromInfo(sheet sheetInfo) sheetDetail {
-	return sheetDetail{
-		Index:     sheet.index,
-		ID:        sheet.id,
-		Name:      sheet.name,
-		Visible:   sheet.visible,
-		Dimension: sheet.dimension,
-	}
-}
-
-// writeRuntimeError writes a runtime error payload and returns its exit code.
-func writeRuntimeError(stderr io.Writer, pretty bool, err error) int {
-	if writeErr := writeErrorJSON(stderr, errorCodeRuntime, err.Error(), pretty); writeErr != nil {
-		return exitRuntime
-	}
-
-	return exitRuntime
+	return nil
 }

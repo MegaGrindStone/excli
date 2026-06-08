@@ -26,11 +26,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	cmd, err := parseArgs(args)
 	if err != nil {
 		pretty := parseErrorPretty(err)
-		if writeErr := writeErrorJSON(stderr, errorCodeUsage, err.Error(), pretty); writeErr != nil {
-			return exitRuntime
-		}
-
-		return exitUsage
+		return writeUsageError(stderr, pretty, err)
 	}
 
 	return dispatch(cmd, stdout, stderr)
@@ -80,6 +76,24 @@ func parseErrorPretty(err error) bool {
 	return parseErr.pretty
 }
 
+// writeUsageError writes a usage error payload and returns its exit code.
+func writeUsageError(stderr io.Writer, pretty bool, err error) int {
+	if writeErr := writeErrorJSON(stderr, errorCodeUsage, err.Error(), pretty); writeErr != nil {
+		return exitRuntime
+	}
+
+	return exitUsage
+}
+
+// writeRuntimeError writes a runtime error payload and returns its exit code.
+func writeRuntimeError(stderr io.Writer, pretty bool, err error) int {
+	if writeErr := writeErrorJSON(stderr, errorCodeRuntime, err.Error(), pretty); writeErr != nil {
+		return exitRuntime
+	}
+
+	return exitRuntime
+}
+
 // dispatch routes a parsed command to its handler.
 func dispatch(cmd parsedArgs, stdout, stderr io.Writer) int {
 	switch {
@@ -100,24 +114,4 @@ func dispatch(cmd parsedArgs, stdout, stderr io.Writer) int {
 
 		return exitRuntime
 	}
-}
-
-// runCellRead returns the current placeholder result for cell reads.
-func runCellRead(cmd parsedArgs, _ io.Writer, stderr io.Writer) int {
-	return writePlaceholderError(stderr, cmd, "cell read")
-}
-
-// runRangeRead returns the current placeholder result for range reads.
-func runRangeRead(cmd parsedArgs, _ io.Writer, stderr io.Writer) int {
-	return writePlaceholderError(stderr, cmd, "range read")
-}
-
-// writePlaceholderError writes a not-yet-implemented runtime error.
-func writePlaceholderError(stderr io.Writer, cmd parsedArgs, name string) int {
-	message := "command not implemented: " + name
-	if err := writeErrorJSON(stderr, errorCodeRuntime, message, cmd.pretty); err != nil {
-		return exitRuntime
-	}
-
-	return exitRuntime
 }
