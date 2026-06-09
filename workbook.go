@@ -1,8 +1,10 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/xuri/excelize/v2"
 )
@@ -24,6 +26,20 @@ func openWorkbook(path string) (*excelize.File, error) {
 	return file, nil
 }
 
+// openOrCreateWorkbook opens an existing workbook or creates a new one when missing.
+func openOrCreateWorkbook(path string) (*excelize.File, bool, error) {
+	file, err := excelize.OpenFile(path)
+	if err == nil {
+		return file, false, nil
+	}
+
+	if !errors.Is(err, os.ErrNotExist) {
+		return nil, false, fmt.Errorf("open workbook %q: %w", path, err)
+	}
+
+	return excelize.NewFile(), true, nil
+}
+
 // closeWorkbook closes an opened workbook when present.
 func closeWorkbook(file *excelize.File) error {
 	if file == nil {
@@ -32,6 +48,27 @@ func closeWorkbook(file *excelize.File) error {
 
 	if err := file.Close(); err != nil {
 		return fmt.Errorf("close workbook: %w", err)
+	}
+
+	return nil
+}
+
+// saveWorkbook persists a workbook through SaveAs for new files or Save for opened files.
+func saveWorkbook(file *excelize.File, path string, created bool) error {
+	if file == nil {
+		return fmt.Errorf("save workbook %q: no workbook open", path)
+	}
+
+	if created {
+		if err := file.SaveAs(path); err != nil {
+			return fmt.Errorf("save workbook %q: %w", path, err)
+		}
+
+		return nil
+	}
+
+	if err := file.Save(); err != nil {
+		return fmt.Errorf("save workbook %q: %w", path, err)
 	}
 
 	return nil
@@ -80,4 +117,25 @@ func workbookReadError(readErr, closeErr error) error {
 	}
 
 	return nil
+}
+
+// workbookWriteError combines mutation, save, and close errors from write operations.
+func workbookWriteError(mutationErr, saveErr, closeErr error) error {
+	if mutationErr != nil {
+		if closeErr != nil {
+			return fmt.Errorf("%w; %s", mutationErr, closeErr.Error())
+		}
+
+		return mutationErr
+	}
+
+	if saveErr != nil {
+		if closeErr != nil {
+			return fmt.Errorf("%w; %s", saveErr, closeErr.Error())
+		}
+
+		return saveErr
+	}
+
+	return closeErr
 }

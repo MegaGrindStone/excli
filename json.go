@@ -23,6 +23,20 @@ type errorBody struct {
 	Message string `json:"message"`
 }
 
+// Mutation operation names describe successful write commands.
+const (
+	operationCellSet    = "cell_set"
+	operationCellClear  = "cell_clear"
+	operationRangeClear = "range_clear"
+)
+
+// mutationResult is the success payload for workbook mutations.
+type mutationResult struct {
+	File      string `json:"file"`
+	Operation string `json:"operation"`
+	Success   bool   `json:"success"`
+}
+
 // writeErrorJSON writes a structured error payload.
 func writeErrorJSON(w io.Writer, code, message string, pretty bool) error {
 	payload := errorPayload{

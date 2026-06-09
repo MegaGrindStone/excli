@@ -179,6 +179,81 @@ func resolveSheet(file *excelize.File, sheet string) (int, string, error) {
 	return index, name, nil
 }
 
+// resolveActiveSheet resolves the workbook's active sheet name.
+func resolveActiveSheet(file *excelize.File) (string, error) {
+	index := file.GetActiveSheetIndex()
+	if index < 0 {
+		return "", fmt.Errorf("active sheet not found")
+	}
+
+	name := file.GetSheetName(index)
+	if name == "" {
+		return "", fmt.Errorf("sheet index %d has no name", index)
+	}
+
+	return name, nil
+}
+
+// ensureMutationSheet resolves or creates a sheet for mutation commands.
+func ensureMutationSheet(file *excelize.File, sheetName string, createdWorkbook bool) (string, error) {
+	if sheetName == "" {
+		return resolveActiveSheet(file)
+	}
+
+	index, err := file.GetSheetIndex(sheetName)
+	if err != nil {
+		return "", fmt.Errorf("get sheet index for %q: %w", sheetName, err)
+	}
+
+	if index >= 0 {
+		name := file.GetSheetName(index)
+		if name == "" {
+			return "", fmt.Errorf("sheet index %d has no name", index)
+		}
+
+		return name, nil
+	}
+
+	if createdWorkbook {
+		activeSheet, err := resolveActiveSheet(file)
+		if err != nil {
+			return "", err
+		}
+
+		if err := file.SetSheetName(activeSheet, sheetName); err != nil {
+			return "", fmt.Errorf("rename sheet %q to %q: %w", activeSheet, sheetName, err)
+		}
+
+		return resolveOptionalSheet(file, sheetName)
+	}
+
+	index, err = file.NewSheet(sheetName)
+	if err != nil {
+		return "", fmt.Errorf("create sheet %q: %w", sheetName, err)
+	}
+
+	name := file.GetSheetName(index)
+	if name == "" {
+		return "", fmt.Errorf("sheet index %d has no name", index)
+	}
+
+	return name, nil
+}
+
+// resolveOptionalSheet resolves an optional sheet name to an existing sheet.
+func resolveOptionalSheet(file *excelize.File, sheetName string) (string, error) {
+	if sheetName == "" {
+		return resolveActiveSheet(file)
+	}
+
+	_, name, err := resolveSheet(file, sheetName)
+	if err != nil {
+		return "", err
+	}
+
+	return name, nil
+}
+
 // buildSheetData constructs metadata for one workbook sheet.
 func buildSheetData(
 	file *excelize.File,

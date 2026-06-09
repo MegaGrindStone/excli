@@ -75,6 +75,21 @@ func TestWriteErrorJSONPretty(t *testing.T) {
 	}
 }
 
+func TestMutationResultJSON(t *testing.T) {
+	t.Parallel()
+
+	result := mutationResult{File: "book.xlsx", Operation: operationCellSet, Success: true}
+	jsonBytes, err := marshalJSON(result, false)
+	if err != nil {
+		t.Fatalf("marshalJSON returned error: %v", err)
+	}
+
+	want := "{\"file\":\"book.xlsx\",\"operation\":\"cell_set\",\"success\":true}\n"
+	if string(jsonBytes) != want {
+		t.Fatalf("mutation JSON = %q, want %q", string(jsonBytes), want)
+	}
+}
+
 func TestWriteJSONWriteError(t *testing.T) {
 	t.Parallel()
 
