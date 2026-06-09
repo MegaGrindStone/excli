@@ -1,6 +1,6 @@
 # excli
 
-`excli` is a small command-line tool for reading and editing local Excel `.xlsx` workbooks while printing predictable JSON.
+`excli` is a small command-line tool for reading and editing local Excel `.xlsx` workbooks while printing predictable JSON for workbook commands.
 
 Use it when you want to inspect or make focused in-place updates to spreadsheets from shell scripts, CI jobs, data-processing pipelines, or AI agents without automating Excel itself. `excli` is non-interactive and intentionally focused on a compact set of workbook, sheet, cell, and range commands.
 
@@ -17,6 +17,12 @@ Use it when you want to inspect or make focused in-place updates to spreadsheets
 - Apply mutation commands directly to the positional workbook path
 
 ## Installation
+
+### Download a GitHub Release archive
+
+Prebuilt archives are published on the [GitHub Releases](https://github.com/MegaGrindStone/excli/releases) page. Download the archive for your operating system and CPU architecture, extract it, and place `excli` (`excli.exe` on Windows) on your `PATH`.
+
+Binaries from GitHub Release archives report their release tag, such as `v0.1.0`, from `excli version`.
 
 ### Install with Go
 
@@ -40,10 +46,17 @@ go build -o excli .
 
 `excli` requires the Go version declared in [`go.mod`](go.mod), currently Go `1.26.4`.
 
+Binaries built from source with `go build` or `go install` print `dev` from `excli version` unless a version is supplied manually with linker flags, for example:
+
+```bash
+go build -ldflags "-X main.version=v0.1.0" -o excli .
+```
+
 ## Commands
 
 | Command | Description |
 | --- | --- |
+| `excli version` | Print the plain-text version string. |
 | `excli workbook info <file>` | Show workbook-level info and a summary of all sheets. |
 | `excli sheet list <file>` | List all sheets in workbook order. |
 | `excli sheet info <file> --sheet <name>` | Show one sheet's metadata and used dimension. |
@@ -54,7 +67,9 @@ go build -o excli .
 | `excli range read <file> --sheet <name> --range <range>` | Read a rectangular A1-style range. |
 | `excli range clear <file> --range <range> [--sheet <name>]` | Clear value/formula content for every cell in a range. |
 
-All commands accept `--pretty` to format JSON output with two-space indentation.
+Workbook, sheet, cell, and range commands accept `--pretty` to format JSON output with two-space indentation.
+
+`excli version` prints the version string followed by a newline.
 
 ## Write behavior
 
