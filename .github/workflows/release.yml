@@ -56,19 +56,19 @@ jobs:
                 exit 1
               }
             }
-          ' CHANGELOG.md > release-notes.md; then
+          ' CHANGELOG.md > "${RUNNER_TEMP}/release-notes.md"; then
             echo "Missing or empty CHANGELOG.md release section for ${tag}." >&2
             echo "Expected heading like: ## [${version}] - YYYY-MM-DD" >&2
             exit 1
           fi
 
-          test -s release-notes.md
+          test -s "${RUNNER_TEMP}/release-notes.md"
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser
           version: '~> v2'
-          args: release --clean --release-notes release-notes.md
+          args: release --clean --release-notes ${{ runner.temp }}/release-notes.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
