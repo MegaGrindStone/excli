@@ -1,6 +1,9 @@
 # Binaries
 excli
 
+# Release artifacts
+dist/
+
 # AI artifacts
 .todo
 chat.txt
