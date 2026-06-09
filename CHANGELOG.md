@@ -13,4 +13,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added top-level help, compact/pretty JSON formatting, structured JSON error payloads, and documented exit codes.
 - Added cell and range reference validation/normalization, including a 10,000-cell safety limit for range reads.
 - Added `cell clear` command to remove a cell's value and formula from a workbook.
+- Added `range clear` command to clear all cells within a rectangular range.
 

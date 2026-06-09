@@ -241,15 +241,15 @@ func createTempWorkbook(t *testing.T) string {
 	return path
 }
 
-func copyFixtureWorkbook(t *testing.T, fixture string) string {
+func copyBasicFixtureWorkbook(t *testing.T) string {
 	t.Helper()
 
-	data, err := os.ReadFile(fixture)
+	data, err := os.ReadFile(basicFixture)
 	if err != nil {
 		t.Fatalf("os.ReadFile returned error: %v", err)
 	}
 
-	path := filepath.Join(t.TempDir(), filepath.Base(fixture))
+	path := filepath.Join(t.TempDir(), filepath.Base(basicFixture))
 	if err := os.WriteFile(path, data, 0o600); err != nil {
 		t.Fatalf("os.WriteFile returned error: %v", err)
 	}

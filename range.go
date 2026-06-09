@@ -48,6 +48,25 @@ func runRangeRead(cmd parsedArgs, stdout io.Writer, stderr io.Writer) int {
 	return exitSuccess
 }
 
+// runRangeClear executes the range clear command.
+func runRangeClear(cmd parsedArgs, stdout io.Writer, stderr io.Writer) int {
+	rng, err := parseCellRange(cmd.cellRange)
+	if err != nil {
+		return writeUsageError(stderr, cmd.pretty, err)
+	}
+
+	result, err := clearRangeResult(cmd.file, cmd.sheet, rng)
+	if err != nil {
+		return writeRuntimeError(stderr, cmd.pretty, err)
+	}
+
+	if err := writeJSON(stdout, result, cmd.pretty); err != nil {
+		return writeRuntimeError(stderr, cmd.pretty, err)
+	}
+
+	return exitSuccess
+}
+
 // readRangeResult builds the range read result for a file, sheet, and range.
 func readRangeResult(path, sheetName string, rng cellRange) (rangeReadResult, error) {
 	file, err := openWorkbook(path)
@@ -107,6 +126,57 @@ func readRangeCells(file *excelize.File, sheet string, rng cellRange) ([]cellVal
 	}
 
 	return cells, nil
+}
+
+// clearRangeResult clears a cell range and returns the mutation success payload.
+func clearRangeResult(path, sheetName string, rng cellRange) (mutationResult, error) {
+	file, err := openWorkbook(path)
+	if err != nil {
+		return mutationResult{}, err
+	}
+
+	mutationErr := clearRangeInWorkbook(file, sheetName, rng)
+	var saveErr error
+	if mutationErr == nil {
+		saveErr = saveWorkbook(file, path, false)
+	}
+
+	closeErr := closeWorkbook(file)
+	if err := workbookWriteError(mutationErr, saveErr, closeErr); err != nil {
+		return mutationResult{}, err
+	}
+
+	return mutationResult{
+		File:      path,
+		Operation: operationRangeClear,
+		Success:   true,
+	}, nil
+}
+
+// clearRangeInWorkbook applies a range clear mutation to an opened workbook.
+func clearRangeInWorkbook(file *excelize.File, sheetName string, rng cellRange) error {
+	sheet, err := resolveOptionalSheet(file, sheetName)
+	if err != nil {
+		return err
+	}
+
+	return clearRangeCells(file, sheet, rng)
+}
+
+// clearRangeCells clears each cell addressed by a range in row-major order.
+func clearRangeCells(file *excelize.File, sheet string, rng cellRange) error {
+	names, err := rng.cellNames()
+	if err != nil {
+		return err
+	}
+
+	for _, name := range names {
+		if err := clearCellValue(file, sheet, name); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // parseCellRange validates and normalizes a cell range reference.

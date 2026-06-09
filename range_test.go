@@ -1,6 +1,10 @@
 package main
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func TestRangeReadResultJSON(t *testing.T) {
 	t.Parallel()
@@ -30,6 +34,66 @@ func TestRangeReadResultJSON(t *testing.T) {
 	if string(jsonBytes) != want {
 		t.Fatalf("range read JSON = %q, want %q", string(jsonBytes), want)
 	}
+}
+
+func TestRunRangeClearClearsReversedLowercaseRange(t *testing.T) {
+	t.Parallel()
+
+	path := copyBasicFixtureWorkbook(t)
+	args := []string{"range", "clear", path, "--sheet", "Data", "--range", "d3:b2"}
+
+	assertRunStdout(t, args, rangeClearSuccessJSON(t, path))
+	assertClearedWorkbookCells(t, path, "Data", []string{"B2", "C2", "D2", "B3", "C3", "D3"})
+	assertWorkbookCellValue(t, path, "Data", "A2", "Alpha")
+	assertWorkbookCellValue(t, path, "Data", "D4", "25")
+}
+
+func TestRunRangeClearUsesActiveSheetWhenSheetOmitted(t *testing.T) {
+	t.Parallel()
+
+	path := createTempWorkbook(t)
+	setA1Args := []string{"cell", "set", path, "--cell", "A1", "--value", "alpha"}
+	setB1Args := []string{"cell", "set", path, "--cell", "B1", "--value", "beta"}
+	clearArgs := []string{"range", "clear", path, "--range", "a1:b1"}
+
+	assertRunStdout(t, setA1Args, cellSetSuccessJSON(t, path))
+	assertRunStdout(t, setB1Args, cellSetSuccessJSON(t, path))
+	assertRunStdout(t, clearArgs, rangeClearSuccessJSON(t, path))
+	assertClearedWorkbookCells(t, path, "Sheet1", []string{"A1", "B1"})
+	assertWorkbookSheets(t, path, []string{"Sheet1"})
+}
+
+func TestRunRangeClearMissingWorkbookDoesNotCreateFile(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "missing.xlsx")
+	args := []string{"range", "clear", path, "--range", "A1:B2"}
+
+	assertRunRuntimeErrorContains(t, args, "open workbook", path)
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("os.Stat error = %v, want missing file", err)
+	}
+}
+
+func TestRunRangeClearMissingSheetDoesNotCreateSheet(t *testing.T) {
+	t.Parallel()
+
+	path := createTempWorkbook(t)
+	args := []string{"range", "clear", path, "--sheet", "Missing", "--range", "A1:B2"}
+
+	assertRunError(t, args, exitRuntime, errorCodeRuntime, "sheet not found: \"Missing\"")
+	assertWorkbookSheets(t, path, []string{"Sheet1"})
+}
+
+func TestRunRangeClearOversizedRangeDoesNotMutateWorkbook(t *testing.T) {
+	t.Parallel()
+
+	path := copyBasicFixtureWorkbook(t)
+	args := []string{"range", "clear", path, "--sheet", "Data", "--range", "A1:J1001"}
+
+	assertRunError(t, args, exitUsage, errorCodeUsage, "range exceeds 10000 cells: A1:J1001")
+	assertWorkbookCellValue(t, path, "Data", "B2", "100")
+	assertWorkbookCellFormula(t, path, "Data", "D2", "SUM(B2:C2)")
 }
 
 func TestParseCellRange(t *testing.T) {
@@ -72,6 +136,30 @@ func TestParseCellRange(t *testing.T) {
 			t.Parallel()
 			assertParsedRange(t, tt)
 		})
+	}
+}
+
+func rangeClearSuccessJSON(t *testing.T, path string) string {
+	t.Helper()
+
+	jsonBytes, err := marshalJSON(mutationResult{
+		File:      path,
+		Operation: operationRangeClear,
+		Success:   true,
+	}, false)
+	if err != nil {
+		t.Fatalf("marshalJSON returned error: %v", err)
+	}
+
+	return string(jsonBytes)
+}
+
+func assertClearedWorkbookCells(t *testing.T, path, sheet string, cells []string) {
+	t.Helper()
+
+	for _, cell := range cells {
+		assertWorkbookCellValue(t, path, sheet, cell, "")
+		assertWorkbookCellFormula(t, path, sheet, cell, "")
 	}
 }
 

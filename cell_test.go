@@ -170,7 +170,7 @@ func TestRunCellSetReportsSaveErrors(t *testing.T) {
 func TestRunCellClearClearsPlainValue(t *testing.T) {
 	t.Parallel()
 
-	path := copyFixtureWorkbook(t, basicFixture)
+	path := copyBasicFixtureWorkbook(t)
 	args := []string{"cell", "clear", path, "--sheet", "Data", "--cell", "B2"}
 
 	assertRunStdout(t, args, cellClearSuccessJSON(t, path))
@@ -182,7 +182,7 @@ func TestRunCellClearClearsPlainValue(t *testing.T) {
 func TestRunCellClearClearsFormula(t *testing.T) {
 	t.Parallel()
 
-	path := copyFixtureWorkbook(t, basicFixture)
+	path := copyBasicFixtureWorkbook(t)
 	args := []string{"cell", "clear", path, "--sheet", "Data", "--cell", "D2"}
 
 	assertRunStdout(t, args, cellClearSuccessJSON(t, path))
@@ -194,7 +194,7 @@ func TestRunCellClearClearsFormula(t *testing.T) {
 func TestRunCellClearSucceedsForAlreadyEmptyCell(t *testing.T) {
 	t.Parallel()
 
-	path := copyFixtureWorkbook(t, basicFixture)
+	path := copyBasicFixtureWorkbook(t)
 	args := []string{"cell", "clear", path, "--sheet", "Data", "--cell", "C3"}
 
 	assertRunStdout(t, args, cellClearSuccessJSON(t, path))

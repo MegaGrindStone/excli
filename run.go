@@ -111,6 +111,8 @@ func dispatch(cmd parsedArgs, stdout, stderr io.Writer) int {
 		return runCellClear(cmd, stdout, stderr)
 	case cmd.resource == resourceRange && cmd.action == actionRead:
 		return runRangeRead(cmd, stdout, stderr)
+	case cmd.resource == resourceRange && cmd.action == actionClear:
+		return runRangeClear(cmd, stdout, stderr)
 	default:
 		if err := writeErrorJSON(stderr, errorCodeRuntime, "internal dispatch error", false); err != nil {
 			return exitRuntime
