@@ -1,6 +1,9 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // Command constants define supported resources, actions, and flags.
 const (
@@ -9,25 +12,33 @@ const (
 	resourceCell     = "cell"
 	resourceRange    = "range"
 
-	actionInfo = "info"
-	actionList = "list"
-	actionRead = "read"
+	actionInfo  = "info"
+	actionList  = "list"
+	actionRead  = "read"
+	actionSet   = "set"
+	actionClear = "clear"
 
-	flagPretty = "--pretty"
-	flagSheet  = "--sheet"
-	flagCell   = "--cell"
-	flagRange  = "--range"
+	flagPretty  = "--pretty"
+	flagSheet   = "--sheet"
+	flagCell    = "--cell"
+	flagRange   = "--range"
+	flagValue   = "--value"
+	flagFormula = "--formula"
 )
 
 // parsedArgs holds a validated CLI command.
 type parsedArgs struct {
-	resource  string
-	action    string
-	file      string
-	sheet     string
-	cell      string
-	cellRange string
-	pretty    bool
+	resource   string
+	action     string
+	file       string
+	sheet      string
+	cell       string
+	cellRange  string
+	value      string
+	formula    string
+	valueSet   bool
+	formulaSet bool
+	pretty     bool
 }
 
 // parseError describes a usage error from argument parsing.
@@ -43,26 +54,31 @@ func (e parseError) Error() string {
 
 // commandSpec describes valid flags for a command.
 type commandSpec struct {
-	resource     string
-	action       string
-	allowSheet   bool
-	allowCell    bool
-	allowRange   bool
-	requireSheet bool
-	requireCell  bool
-	requireRange bool
+	resource              string
+	action                string
+	allowSheet            bool
+	allowCell             bool
+	allowRange            bool
+	allowValue            bool
+	allowFormula          bool
+	requireSheet          bool
+	requireCell           bool
+	requireRange          bool
+	requireValueOrFormula bool
 }
 
 // argParser incrementally parses CLI arguments.
 type argParser struct {
-	args       []string
-	spec       commandSpec
-	cmd        parsedArgs
-	file       string
-	seenPretty bool
-	seenSheet  bool
-	seenCell   bool
-	seenRange  bool
+	args        []string
+	spec        commandSpec
+	cmd         parsedArgs
+	file        string
+	seenPretty  bool
+	seenSheet   bool
+	seenCell    bool
+	seenRange   bool
+	seenValue   bool
+	seenFormula bool
 }
 
 // parseArgs parses and validates CLI arguments.
@@ -161,7 +177,7 @@ func (p *argParser) parseFlag(index int) (int, error) {
 			return 0, parseError{message: fmt.Sprintf("duplicate flag: %s", flagSheet), pretty: p.cmd.pretty}
 		}
 
-		value, next, err := readFlagValue(p.args, index)
+		value, next, err := readFlagValue(p.args, index, false)
 		if err != nil {
 			return 0, parseError{message: err.Error(), pretty: p.cmd.pretty}
 		}
@@ -174,7 +190,7 @@ func (p *argParser) parseFlag(index int) (int, error) {
 			return 0, parseError{message: fmt.Sprintf("duplicate flag: %s", flagCell), pretty: p.cmd.pretty}
 		}
 
-		value, next, err := readFlagValue(p.args, index)
+		value, next, err := readFlagValue(p.args, index, false)
 		if err != nil {
 			return 0, parseError{message: err.Error(), pretty: p.cmd.pretty}
 		}
@@ -187,13 +203,41 @@ func (p *argParser) parseFlag(index int) (int, error) {
 			return 0, parseError{message: fmt.Sprintf("duplicate flag: %s", flagRange), pretty: p.cmd.pretty}
 		}
 
-		value, next, err := readFlagValue(p.args, index)
+		value, next, err := readFlagValue(p.args, index, false)
 		if err != nil {
 			return 0, parseError{message: err.Error(), pretty: p.cmd.pretty}
 		}
 
 		p.seenRange = true
 		p.cmd.cellRange = value
+		return next, nil
+	case flagValue:
+		if p.seenValue {
+			return 0, parseError{message: fmt.Sprintf("duplicate flag: %s", flagValue), pretty: p.cmd.pretty}
+		}
+
+		value, next, err := readFlagValue(p.args, index, true)
+		if err != nil {
+			return 0, parseError{message: err.Error(), pretty: p.cmd.pretty}
+		}
+
+		p.seenValue = true
+		p.cmd.value = value
+		p.cmd.valueSet = true
+		return next, nil
+	case flagFormula:
+		if p.seenFormula {
+			return 0, parseError{message: fmt.Sprintf("duplicate flag: %s", flagFormula), pretty: p.cmd.pretty}
+		}
+
+		value, next, err := readFlagValue(p.args, index, true)
+		if err != nil {
+			return 0, parseError{message: err.Error(), pretty: p.cmd.pretty}
+		}
+
+		p.seenFormula = true
+		p.cmd.formula = value
+		p.cmd.formulaSet = true
 		return next, nil
 	default:
 		return 0, parseError{message: fmt.Sprintf("unknown flag: %s", p.args[index]), pretty: p.cmd.pretty}
@@ -218,6 +262,14 @@ func (p *argParser) validate() error {
 		return parseError{message: fmt.Sprintf("flag not allowed: %s", flagRange), pretty: p.cmd.pretty}
 	}
 
+	if p.seenValue && !p.spec.allowValue {
+		return parseError{message: fmt.Sprintf("flag not allowed: %s", flagValue), pretty: p.cmd.pretty}
+	}
+
+	if p.seenFormula && !p.spec.allowFormula {
+		return parseError{message: fmt.Sprintf("flag not allowed: %s", flagFormula), pretty: p.cmd.pretty}
+	}
+
 	if p.spec.requireSheet && p.cmd.sheet == "" {
 		return parseError{message: fmt.Sprintf("missing %s", flagSheet), pretty: p.cmd.pretty}
 	}
@@ -228,6 +280,16 @@ func (p *argParser) validate() error {
 
 	if p.spec.requireRange && p.cmd.cellRange == "" {
 		return parseError{message: fmt.Sprintf("missing %s", flagRange), pretty: p.cmd.pretty}
+	}
+
+	if p.spec.requireValueOrFormula {
+		if p.cmd.valueSet && p.cmd.formulaSet {
+			return parseError{message: fmt.Sprintf("cannot combine %s and %s", flagValue, flagFormula), pretty: p.cmd.pretty}
+		}
+
+		if !p.cmd.valueSet && !p.cmd.formulaSet {
+			return parseError{message: fmt.Sprintf("missing %s or %s", flagValue, flagFormula), pretty: p.cmd.pretty}
+		}
 	}
 
 	return nil
@@ -251,6 +313,13 @@ func (p *argParser) normalize() error {
 		}
 
 		p.cmd.cellRange = normalized.ref
+	}
+
+	if p.cmd.formulaSet {
+		p.cmd.formula = strings.TrimPrefix(p.cmd.formula, "=")
+		if p.cmd.formula == "" {
+			return parseError{message: fmt.Sprintf("empty %s", flagFormula), pretty: p.cmd.pretty}
+		}
 	}
 
 	return nil
@@ -279,6 +348,25 @@ func lookupCommand(resource, action string) (commandSpec, bool) {
 			requireSheet: true,
 			requireCell:  true,
 		}, true
+	case resource == resourceCell && action == actionSet:
+		return commandSpec{
+			resource:              resource,
+			action:                action,
+			allowSheet:            true,
+			allowCell:             true,
+			allowValue:            true,
+			allowFormula:          true,
+			requireCell:           true,
+			requireValueOrFormula: true,
+		}, true
+	case resource == resourceCell && action == actionClear:
+		return commandSpec{
+			resource:    resource,
+			action:      action,
+			allowSheet:  true,
+			allowCell:   true,
+			requireCell: true,
+		}, true
 	case resource == resourceRange && action == actionRead:
 		return commandSpec{
 			resource:     resource,
@@ -288,15 +376,23 @@ func lookupCommand(resource, action string) (commandSpec, bool) {
 			requireSheet: true,
 			requireRange: true,
 		}, true
+	case resource == resourceRange && action == actionClear:
+		return commandSpec{
+			resource:     resource,
+			action:       action,
+			allowSheet:   true,
+			allowRange:   true,
+			requireRange: true,
+		}, true
 	default:
 		return commandSpec{}, false
 	}
 }
 
 // readFlagValue reads the value following a flag token.
-func readFlagValue(args []string, index int) (string, int, error) {
+func readFlagValue(args []string, index int, allowFlagTokenValue bool) (string, int, error) {
 	next := index + 1
-	if next >= len(args) || isFlagToken(args[next]) {
+	if next >= len(args) || (!allowFlagTokenValue && isFlagToken(args[next])) {
 		return "", 0, fmt.Errorf("missing value for %s", args[index])
 	}
 
