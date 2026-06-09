@@ -15,4 +15,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `cell clear` command to remove a cell's value and formula from a workbook.
 - Added `range clear` command to clear all cells within a rectangular range.
 - Documented `cell set`, `cell clear`, and `range clear` commands in README and CLI help text.
+- Added `version` subcommand to output the application version (default "dev").
 

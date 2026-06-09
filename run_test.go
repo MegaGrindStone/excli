@@ -45,6 +45,27 @@ func TestRunWritesPrettyUsageError(t *testing.T) {
 	}
 }
 
+func TestRunWritesVersionDefaultDev(t *testing.T) {
+	t.Parallel()
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	exitCode := run([]string{"version"}, &stdout, &stderr)
+
+	if exitCode != exitSuccess {
+		t.Fatalf("exit code = %d, want %d", exitCode, exitSuccess)
+	}
+
+	if stdout.String() != "dev\n" {
+		t.Fatalf("stdout = %q, want %q", stdout.String(), "dev\n")
+	}
+
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+}
+
 func TestRunDispatchesCellReadMissingWorkbook(t *testing.T) {
 	t.Parallel()
 
@@ -71,6 +92,7 @@ func TestRunWritesHelp(t *testing.T) {
 
 	want := "excli\n\n" +
 		"Commands:\n" +
+		"  excli version\n" +
 		"  excli workbook info <file>\n" +
 		"  excli sheet list <file>\n" +
 		"  excli sheet info <file> --sheet <name>\n" +
@@ -94,6 +116,22 @@ func TestRunReturnsRuntimeOnHelpWriteError(t *testing.T) {
 	var stderr bytes.Buffer
 
 	exitCode := run([]string{"--help"}, errWriter{}, &stderr)
+
+	if exitCode != exitRuntime {
+		t.Fatalf("exit code = %d, want %d", exitCode, exitRuntime)
+	}
+
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+}
+
+func TestRunReturnsRuntimeOnVersionWriteError(t *testing.T) {
+	t.Parallel()
+
+	var stderr bytes.Buffer
+
+	exitCode := run([]string{"version"}, errWriter{}, &stderr)
 
 	if exitCode != exitRuntime {
 		t.Fatalf("exit code = %d, want %d", exitCode, exitRuntime)

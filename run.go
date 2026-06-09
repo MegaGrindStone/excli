@@ -13,10 +13,20 @@ const (
 	exitUsage   = 2
 )
 
+var version = "dev"
+
 // run executes the CLI with injected streams for testing.
 func run(args []string, stdout, stderr io.Writer) int {
 	if isHelpCommand(args) {
 		if err := writeHelp(stdout); err != nil {
+			return exitRuntime
+		}
+
+		return exitSuccess
+	}
+
+	if isVersionCommand(args) {
+		if err := writeVersion(stdout); err != nil {
 			return exitRuntime
 		}
 
@@ -46,12 +56,27 @@ func isHelpCommand(args []string) bool {
 	}
 }
 
+// isVersionCommand reports whether args request top-level version output.
+func isVersionCommand(args []string) bool {
+	return len(args) == 1 && args[0] == "version"
+}
+
+// writeVersion writes the top-level version output.
+func writeVersion(w io.Writer) error {
+	if _, err := io.WriteString(w, version+"\n"); err != nil {
+		return fmt.Errorf("write version: %w", err)
+	}
+
+	return nil
+}
+
 // writeHelp writes the top-level help text.
 func writeHelp(w io.Writer) error {
 	// helpText is the top-level CLI help output.
 	const helpText = `excli
 
 Commands:
+  excli version
   excli workbook info <file>
   excli sheet list <file>
   excli sheet info <file> --sheet <name>
