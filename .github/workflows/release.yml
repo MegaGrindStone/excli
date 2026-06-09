@@ -1,0 +1,74 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run tests
+        run: go test ./...
+
+      - name: Extract release notes
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tag="${GITHUB_REF_NAME}"
+          version="${tag#v}"
+
+          if ! awk -v version="${version}" '
+            BEGIN { heading = "## [" version "] - " }
+            index($0, heading) == 1 {
+              found = 1
+              print
+              next
+            }
+            found && /^## \[/ {
+              exit
+            }
+            found {
+              print
+              if ($0 ~ /[^[:space:]]/) {
+                has_content = 1
+              }
+            }
+            END {
+              if (!found || !has_content) {
+                exit 1
+              }
+            }
+          ' CHANGELOG.md > release-notes.md; then
+            echo "Missing or empty CHANGELOG.md release section for ${tag}." >&2
+            echo "Expected heading like: ## [${version}] - YYYY-MM-DD" >&2
+            exit 1
+          fi
+
+          test -s release-notes.md
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          distribution: goreleaser
+          version: '~> v2'
+          args: release --clean --release-notes release-notes.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
