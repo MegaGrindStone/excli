@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-06-10
+
 ### Added
 - Introduced `excli`, a Go CLI for read-only inspection of local `.xlsx` workbooks.
 - Added `workbook info`, `sheet list`, `sheet info`, `cell read`, and `range read` commands with deterministic JSON output.
@@ -16,4 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `range clear` command to clear all cells within a rectangular range.
 - Documented `cell set`, `cell clear`, and `range clear` commands in README and CLI help text.
 - Added `version` subcommand to output the application version (default "dev").
+
+[unreleased]: https://github.com/MegaGrindStone/excli/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/MegaGrindStone/excli/releases/tag/v0.1.0
 
