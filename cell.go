@@ -86,7 +86,7 @@ func readCellResultFromWorkbook(
 
 	return cellReadResult{
 		File:      path,
-		Sheet:     sheetName,
+		Sheet:     sheet,
 		cellValue: value,
 	}, nil
 }

@@ -59,6 +59,12 @@ func TestRunFixtureBackedHappyPaths(t *testing.T) {
 				"\"dimension\":\"A1:D4\"}}\n",
 		},
 		{
+			name: "cell read plain value",
+			args: []string{"cell", "read", basicFixture, "--sheet", "Data", "--cell", "b2"},
+			want: "{\"file\":\"testdata/basic.xlsx\",\"sheet\":\"Data\"," +
+				"\"cell\":\"B2\",\"value\":\"100\"}\n",
+		},
+		{
 			name: "cell read formula",
 			args: []string{"cell", "read", basicFixture, "--sheet", "Data", "--cell", "d2"},
 			want: "{\"file\":\"testdata/basic.xlsx\",\"sheet\":\"Data\"," +
