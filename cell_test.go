@@ -1,6 +1,12 @@
 package main
 
-import "testing"
+import (
+	"bytes"
+	"encoding/json"
+	"path/filepath"
+	"strings"
+	"testing"
+)
 
 func TestCellReadResultJSON(t *testing.T) {
 	t.Parallel()
@@ -49,6 +55,117 @@ func TestCellReadResultJSONIncludesFormula(t *testing.T) {
 	}
 }
 
+func TestRunCellSetCreatesWorkbookWithDefaultSheet(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "book.xlsx")
+	args := []string{"cell", "set", path, "--cell", "A1", "--value", "created"}
+
+	assertRunStdout(t, args, cellSetSuccessJSON(t, path))
+	assertWorkbookSheets(t, path, []string{"Sheet1"})
+	assertWorkbookCellValue(t, path, "Sheet1", "A1", "created")
+}
+
+func TestRunCellSetCreatesWorkbookWithNamedSheet(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "book.xlsx")
+	args := []string{"cell", "set", path, "--sheet", "Budget", "--cell", "B2", "--value", "001"}
+
+	assertRunStdout(t, args, cellSetSuccessJSON(t, path))
+	assertWorkbookSheets(t, path, []string{"Budget"})
+	assertWorkbookCellValue(t, path, "Budget", "B2", "001")
+}
+
+func TestRunCellSetCreatesSheetInExistingWorkbook(t *testing.T) {
+	t.Parallel()
+
+	path := createTempWorkbook(t)
+	args := []string{"cell", "set", path, "--sheet", "Budget", "--cell", "A1", "--value", "budget"}
+
+	assertRunStdout(t, args, cellSetSuccessJSON(t, path))
+	assertWorkbookSheets(t, path, []string{"Sheet1", "Budget"})
+	assertWorkbookCellValue(t, path, "Budget", "A1", "budget")
+}
+
+func TestRunCellSetWritesLiteralStringValues(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		value string
+	}{
+		{
+			name:  "leading zero",
+			value: "001",
+		},
+		{
+			name:  "boolean word",
+			value: "true",
+		},
+		{
+			name:  "dash-prefixed number",
+			value: "-1",
+		},
+		{
+			name:  "formula-looking string",
+			value: "=SUM(A1:A2)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			path := createTempWorkbook(t)
+			args := []string{"cell", "set", path, "--cell", "C3", "--value", tt.value}
+
+			assertRunStdout(t, args, cellSetSuccessJSON(t, path))
+			assertWorkbookCellValue(t, path, "Sheet1", "C3", tt.value)
+			assertWorkbookCellFormula(t, path, "Sheet1", "C3", "")
+		})
+	}
+}
+
+func TestRunCellSetWritesFormulas(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		formula string
+	}{
+		{
+			name:    "without leading equals",
+			formula: "SUM(A1:A2)",
+		},
+		{
+			name:    "with leading equals",
+			formula: "=SUM(A1:A2)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			path := createTempWorkbook(t)
+			args := []string{"cell", "set", path, "--cell", "D4", "--formula", tt.formula}
+
+			assertRunStdout(t, args, cellSetSuccessJSON(t, path))
+			assertWorkbookCellFormula(t, path, "Sheet1", "D4", "SUM(A1:A2)")
+		})
+	}
+}
+
+func TestRunCellSetReportsSaveErrors(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "missing-dir", "book.xlsx")
+	args := []string{"cell", "set", path, "--cell", "A1", "--value", "created"}
+
+	assertRunRuntimeErrorContains(t, args, "save workbook", path)
+}
+
 func TestNormalizeCellRef(t *testing.T) {
 	t.Parallel()
 
@@ -95,5 +212,82 @@ func TestNormalizeCellRef(t *testing.T) {
 				t.Fatalf("normalized cell = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func cellSetSuccessJSON(t *testing.T, path string) string {
+	t.Helper()
+
+	jsonBytes, err := marshalJSON(mutationResult{
+		File:      path,
+		Operation: operationCellSet,
+		Success:   true,
+	}, false)
+	if err != nil {
+		t.Fatalf("marshalJSON returned error: %v", err)
+	}
+
+	return string(jsonBytes)
+}
+
+func assertWorkbookSheets(t *testing.T, path string, want []string) {
+	t.Helper()
+
+	file, err := openWorkbook(path)
+	if err != nil {
+		t.Fatalf("openWorkbook returned error: %v", err)
+	}
+	defer closeTestWorkbook(t, file)
+
+	assertSheetList(t, file, want)
+}
+
+func assertWorkbookCellFormula(t *testing.T, path, sheet, cell, want string) {
+	t.Helper()
+
+	file, err := openWorkbook(path)
+	if err != nil {
+		t.Fatalf("openWorkbook returned error: %v", err)
+	}
+	defer closeTestWorkbook(t, file)
+
+	got, err := file.GetCellFormula(sheet, cell)
+	if err != nil {
+		t.Fatalf("GetCellFormula returned error: %v", err)
+	}
+
+	if got != want {
+		t.Fatalf("cell formula = %q, want %q", got, want)
+	}
+}
+
+func assertRunRuntimeErrorContains(t *testing.T, args []string, substrings ...string) {
+	t.Helper()
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	exitCode := run(args, &stdout, &stderr)
+	if exitCode != exitRuntime {
+		t.Fatalf("exit code = %d, want %d", exitCode, exitRuntime)
+	}
+
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+
+	var payload errorPayload
+	if err := json.Unmarshal(stderr.Bytes(), &payload); err != nil {
+		t.Fatalf("json.Unmarshal returned error: %v", err)
+	}
+
+	if payload.Error.Code != errorCodeRuntime {
+		t.Fatalf("error code = %q, want %q", payload.Error.Code, errorCodeRuntime)
+	}
+
+	for _, substring := range substrings {
+		if !strings.Contains(payload.Error.Message, substring) {
+			t.Fatalf("error message = %q, want to contain %q", payload.Error.Message, substring)
+		}
 	}
 }

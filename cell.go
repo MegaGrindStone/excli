@@ -51,6 +51,28 @@ func runCellRead(cmd parsedArgs, stdout io.Writer, stderr io.Writer) int {
 	return exitSuccess
 }
 
+// runCellSet executes the cell set command.
+func runCellSet(cmd parsedArgs, stdout io.Writer, stderr io.Writer) int {
+	result, err := setCellResult(
+		cmd.file,
+		cmd.sheet,
+		cmd.cell,
+		cmd.value,
+		cmd.formula,
+		cmd.valueSet,
+		cmd.formulaSet,
+	)
+	if err != nil {
+		return writeRuntimeError(stderr, cmd.pretty, err)
+	}
+
+	if err := writeJSON(stdout, result, cmd.pretty); err != nil {
+		return writeRuntimeError(stderr, cmd.pretty, err)
+	}
+
+	return exitSuccess
+}
+
 // readCellResult builds the cell read result for a file, sheet, and cell.
 func readCellResult(path, sheetName, cell string) (cellReadResult, error) {
 	file, err := openWorkbook(path)
@@ -65,6 +87,92 @@ func readCellResult(path, sheetName, cell string) (cellReadResult, error) {
 	}
 
 	return result, nil
+}
+
+// setCellResult writes one cell and returns the mutation success payload.
+func setCellResult(
+	path string,
+	sheetName string,
+	cell string,
+	value string,
+	formula string,
+	valueSet bool,
+	formulaSet bool,
+) (mutationResult, error) {
+	file, created, err := openOrCreateWorkbook(path)
+	if err != nil {
+		return mutationResult{}, err
+	}
+
+	mutationErr := setCellInWorkbook(file, sheetName, cell, value, formula, valueSet, formulaSet, created)
+	var saveErr error
+	if mutationErr == nil {
+		saveErr = saveWorkbook(file, path, created)
+	}
+
+	closeErr := closeWorkbook(file)
+	if err := workbookWriteError(mutationErr, saveErr, closeErr); err != nil {
+		return mutationResult{}, err
+	}
+
+	return mutationResult{
+		File:      path,
+		Operation: operationCellSet,
+		Success:   true,
+	}, nil
+}
+
+// setCellInWorkbook applies a cell set mutation to an opened workbook.
+func setCellInWorkbook(
+	file *excelize.File,
+	sheetName string,
+	cell string,
+	value string,
+	formula string,
+	valueSet bool,
+	formulaSet bool,
+	createdWorkbook bool,
+) error {
+	sheet, err := ensureMutationSheet(file, sheetName, createdWorkbook)
+	if err != nil {
+		return err
+	}
+
+	return setCellValue(file, sheet, cell, value, formula, valueSet, formulaSet)
+}
+
+// setCellValue writes a literal string value or formula into one normalized cell.
+func setCellValue(
+	file *excelize.File,
+	sheet string,
+	cell string,
+	value string,
+	formula string,
+	valueSet bool,
+	formulaSet bool,
+) error {
+	normalized, err := normalizeCellRef(cell)
+	if err != nil {
+		return err
+	}
+
+	if valueSet {
+		if err := file.SetCellStr(sheet, normalized, value); err != nil {
+			return fmt.Errorf("set cell value for %q in %q: %w", normalized, sheet, err)
+		}
+
+		return nil
+	}
+
+	if formulaSet {
+		if err := file.SetCellFormula(sheet, normalized, formula); err != nil {
+			return fmt.Errorf("set cell formula for %q in %q: %w", normalized, sheet, err)
+		}
+
+		return nil
+	}
+
+	return fmt.Errorf("missing cell set value or formula")
 }
 
 // readCellResultFromWorkbook reads one cell from an opened workbook.
