@@ -1,170 +1,78 @@
 # excli
 
-`excli` is an agent- and tool-friendly Command Line Interface (CLI) for inspecting local `.xlsx` files. Designed to be easily invoked by both automated AI agents/tools and humans in shell scripts, it exposes workbook/sheet structure, sheet visibility, dimensions, and cell/range values as structured, deterministic JSON.
+`excli` is a small command-line tool for reading local Excel `.xlsx` workbooks and printing predictable JSON.
 
----
+Use it when you want to inspect spreadsheets from shell scripts, CI jobs, data-processing pipelines, or AI agents without automating Excel itself. `excli` is read-only, non-interactive, and intentionally focused on a compact set of workbook, sheet, cell, and range inspection commands.
 
-## Installation & Build
+## Features
 
-Build and run `excli` locally with standard Go development tools.
+- Read workbook and worksheet metadata from local `.xlsx` files
+- List sheets, including hidden/visible status
+- Read individual cells, including formula text when present
+- Read rectangular ranges in row-major order
+- Emit compact JSON by default, with `--pretty` for formatted output
+- Return structured JSON errors on `stderr` with stable exit codes
+- Avoid workbook mutation entirely
 
-### Prerequisites
+## Installation
 
-- [Go](https://go.dev/doc/install) (version declared in `go.mod`, currently `1.26.4` or later is recommended)
-
-### Build the Binary
-
-To compile the `excli` binary in the current directory:
+### Install with Go
 
 ```bash
+go install github.com/MegaGrindStone/excli@latest
+```
+
+Make sure your Go bin directory is on your `PATH`:
+
+```bash
+export PATH="$(go env GOPATH)/bin:$PATH"
+```
+
+### Build from source
+
+```bash
+git clone https://github.com/MegaGrindStone/excli.git
+cd excli
 go build -o excli .
 ```
 
-### Install Globally
+`excli` requires the Go version declared in [`go.mod`](go.mod), currently Go `1.26.4`.
 
-To install the binary into your `$GOPATH/bin`:
+## Commands
 
-```bash
-go install .
-```
+| Command | Description |
+| --- | --- |
+| `excli workbook info <file>` | Show workbook-level info and a summary of all sheets. |
+| `excli sheet list <file>` | List all sheets in workbook order. |
+| `excli sheet info <file> --sheet <name>` | Show one sheet's metadata and used dimension. |
+| `excli cell read <file> --sheet <name> --cell <cell>` | Read a single A1-style cell reference. |
+| `excli range read <file> --sheet <name> --range <range>` | Read a rectangular A1-style range. |
 
----
+All commands accept `--pretty` to format JSON output with two-space indentation.
 
-## Supported Commands
+## JSON behavior
 
-`excli` provides five high-level read-only commands. By default, outputs are emitted as single-line JSON. You can pass the `--pretty` flag to format the JSON output with two-space indentation.
+`excli` is designed to be easy to parse:
 
-### 1. `excli workbook info <file>`
+- Successful command output is written to `stdout` as JSON followed by a newline.
+- Errors are written to `stderr` as JSON followed by a newline.
+- The `file` field echoes the workbook path exactly as provided.
+- Sheet `index` values are zero-based and follow workbook sheet order.
+- Cell and range references are normalized to uppercase A1 notation. For example, `a1:b2` becomes `A1:B2`.
+- Cell `value` fields are always strings and reflect the workbook's formatted display values.
+- Values are not cast to JSON numbers, booleans, dates, or nulls.
+- `formula` appears only when a cell has formula text.
+- `range read` returns every cell in the requested rectangle in row-major order, including empty cells.
 
-Inspects the workbook and returns high-level information, including a summary of all worksheets.
+## Exit codes and errors
 
-* **Example Invocation:**
-  ```bash
-  excli workbook info testdata/basic.xlsx
-  ```
-* **Success Output:**
-  ```json
-  {"file":"testdata/basic.xlsx","sheet_count":1,"sheets":[{"index":0,"id":1,"name":"Data","visible":true}]}
-  ```
+| Exit code | Meaning |
+| --- | --- |
+| `0` | Success. Result JSON is written to `stdout`. |
+| `1` | Runtime error, such as an unreadable file or missing sheet. Error JSON is written to `stderr`. |
+| `2` | Usage or argument validation error, such as a missing flag or invalid cell reference. Error JSON is written to `stderr`. |
 
----
-
-### 2. `excli sheet list <file>`
-
-Lists all sheets in the workbook in sheet order.
-
-* **Example Invocation:**
-  ```bash
-  excli sheet list testdata/multisheet.xlsx
-  ```
-* **Success Output:**
-  ```json
-  {"file":"testdata/multisheet.xlsx","sheets":[{"index":0,"id":1,"name":"Visible","visible":true},{"index":1,"id":2,"name":"Hidden","visible":false}]}
-  ```
-
----
-
-### 3. `excli sheet info <file> --sheet <name>`
-
-Inspects summary details and the used dimension for a specific worksheet.
-
-* **Example Invocation:**
-  ```bash
-  excli sheet info testdata/basic.xlsx --sheet Data
-  ```
-* **Success Output:**
-  ```json
-  {"file":"testdata/basic.xlsx","sheet":{"index":0,"id":1,"name":"Data","visible":true,"dimension":"A1:D4"}}
-  ```
-
----
-
-### 4. `excli cell read <file> --sheet <name> --cell <cell>`
-
-Reads the displayed value and optional formula for a specific cell.
-
-* **Example Invocation:**
-  ```bash
-  excli cell read testdata/basic.xlsx --sheet Data --cell D2
-  ```
-* **Success Output:**
-  ```json
-  {"file":"testdata/basic.xlsx","sheet":"Data","cell":"D2","value":"150","formula":"SUM(B2:C2)"}
-  ```
-* **Empty Cell Output:**
-  If a cell has no value, it returns an empty string. The `formula` key is omitted when no formula is present.
-  ```bash
-  excli cell read testdata/basic.xlsx --sheet Data --cell C3
-  ```
-  ```json
-  {"file":"testdata/basic.xlsx","sheet":"Data","cell":"C3","value":""}
-  ```
-
----
-
-### 5. `excli range read <file> --sheet <name> --range <range>`
-
-Reads a contiguous rectangular range of cells in row-major order.
-
-* **Example Invocation:**
-  ```bash
-  excli range read testdata/basic.xlsx --sheet Data --range A1:D4
-  ```
-* **Success Output:**
-  ```json
-  {"file":"testdata/basic.xlsx","sheet":"Data","range":"A1:D4","cells":[{"cell":"A1","value":"Name"},{"cell":"B1","value":"Amount"},{"cell":"C1","value":"Bonus"},{"cell":"D1","value":"Total"},{"cell":"A2","value":"Alpha"},{"cell":"B2","value":"100"},{"cell":"C2","value":"50"},{"cell":"D2","value":"150","formula":"SUM(B2:C2)"},{"cell":"A3","value":"Beta"},{"cell":"B3","value":"200"},{"cell":"C3","value":""},{"cell":"D3","value":"200","formula":"SUM(B3:C3)"},{"cell":"A4","value":"Gamma"},{"cell":"B4","value":"0"},{"cell":"C4","value":"25"},{"cell":"D4","value":"25","formula":"SUM(B4:C4)"}]}
-  ```
-
----
-
-## JSON Contract Notes
-
-* **Output Stream & Formatting:** Successful JSON output is written to `stdout` ending with a single trailing newline. It is printed in compact single-line JSON by default, or with a two-space indentation when using `--pretty`.
-* **File Path:** The `file` property echoes the user-provided workbook path string exactly.
-* **Sheet Indexing & ID:** Worksheet `index` is zero-based (reflecting sheet list order), and `id` corresponds to the workbook sheet ID.
-* **Reference Normalization:** Cell references and range syntax are validated and normalized to uppercase, top-left A1-style notation (e.g., `a1` becomes `A1` and `a1:b2` becomes `A1:B2`).
-* **Value Extraction:** The `value` fields are strings returned by Excelize based on default formatted cell values. There is no JSON type-inference or casting (e.g., to JSON numbers, booleans, or dates).
-* **Formulas:** The `formula` property is included only when a formula is present in the cell; empty formula strings are omitted entirely.
-* **Range Reading:** For `range read`, cell objects are emitted in row-major order. Every cell within the requested bounding box is included, with empty cells represented as `"value": ""`.
-
----
-
-## Global Options
-
-### Pretty Printing (`--pretty`)
-
-Any JSON-producing command supports the `--pretty` flag. This formats success payloads and errors with clear indentation and line breaks.
-
-* **Example Invocation:**
-  ```bash
-  excli cell read testdata/basic.xlsx --sheet Data --cell D2 --pretty
-  ```
-* **Output:**
-  ```json
-  {
-    "file": "testdata/basic.xlsx",
-    "sheet": "Data",
-    "cell": "D2",
-    "value": "150",
-    "formula": "SUM(B2:C2)"
-  }
-  ```
-
----
-
-## Exit Codes and Errors
-
-`excli` uses standardized exit codes and a structured, predictable error contract written to `stderr` in JSON.
-
-### Exit Code Contract
-
-* `0`: Success (Result JSON is written to `stdout`).
-* `1`: Runtime / general error (Error JSON is written to `stderr`), e.g., workbook file not found, unreadable sheet, or Excelize runtime errors.
-* `2`: Usage / argument validation error (Error JSON is written to `stderr`), e.g., missing required flags, unknown flags, duplicate singleton flags, or invalid cell/range syntax.
-
-### Error Schema
-
-All CLI errors use this exact top-level JSON structure:
+Error payloads use this shape:
 
 ```json
 {
@@ -175,67 +83,42 @@ All CLI errors use this exact top-level JSON structure:
 }
 ```
 
-* `error.code` is either `"usage_error"` (for exit code `2`) or `"runtime_error"` (for exit code `1`).
-* `error.message` is a clear, single-line human-readable error description.
+`error.code` is either `usage_error` or `runtime_error`.
 
----
+## Scope
 
-## Scope & Boundaries
+`excli` currently focuses on reliable read-only inspection.
 
-To ensure stability and reliability when being parsed by agents or shell scripts, `excli` operates under explicit boundaries:
+Supported:
 
-* **Local `.xlsx` files only:** There is no support for legacy `.xls` formats, cloud spreadsheet APIs (e.g., Google Sheets, Office 365), or remote URLs.
-* **Read-only inspection:** This is a read-first tool. No mutation or writing capabilities are supported.
-* **Value Formatting:** Values are exposed as displayed strings returned by Excelize. No type-inference or casting (e.g., to JSON numbers, booleans, or ISO dates) is performed.
-* **Excluded Metadata:** Style details, custom formatting, rich-text annotations, comment threads, embedded charts, and images are intentionally excluded.
-* **Maximum cell safety limit:** To avoid resource exhaustion when reading massive ranges, `excli range read` will reject ranges exceeding `10,000` cells with a `usage_error` (exit code `2`).
+- Local `.xlsx` files
+- Workbook, sheet, cell, and range reads
+- Sheet visibility and used sheet dimensions
+- Formula text for read cells
 
----
+Not supported:
 
-## Shell Scripting Example with `jq`
+- Editing or writing workbooks
+- Legacy `.xls` files
+- Google Sheets, Office 365, or remote URLs
+- Styles, comments, rich text, charts, images, validations, pivot tables, or other advanced workbook artifacts
+- Reading ranges larger than `10,000` cells
 
-Since `excli` communicates in structured JSON, it integrates seamlessly into shell pipelines. You can use tools like [`jq`](https://jqlang.github.io/jq/) to parse its outputs.
-
-### Extract all sheet names from a workbook:
-```bash
-excli sheet list testdata/multisheet.xlsx | jq -r '.sheets[].name'
-```
-
-### Retrieve only the cell formula of a target cell:
-```bash
-excli cell read testdata/basic.xlsx --sheet Data --cell D2 | jq -r '.formula'
-```
-
----
-
-## Development & Verification
-
-### Running Tests
-
-Execute the unit and integration test suite to verify CLI behavior:
+## Development
 
 ```bash
 go test ./...
-```
-
-### Local Build
-
-Verify that the binary compiles successfully:
-
-```bash
 go build
 ```
 
-### Code Linting
-
-Run static code analysis checks locally:
+If you use `golangci-lint` locally:
 
 ```bash
 golangci-lint run
 ```
 
----
+Contributions and issue reports are welcome.
 
 ## License
 
-This project is licensed under the MIT License. See [LICENSE](LICENSE).
+`excli` is released under the MIT License. See [LICENSE](LICENSE).
