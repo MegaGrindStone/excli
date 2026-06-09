@@ -56,7 +56,10 @@ Commands:
   excli sheet list <file>
   excli sheet info <file> --sheet <name>
   excli cell read <file> --sheet <name> --cell <cell>
+  excli cell set <file> --cell <cell> [--sheet <name>] (--value <text> | --formula <formula>)
+  excli cell clear <file> --cell <cell> [--sheet <name>]
   excli range read <file> --sheet <name> --range <range>
+  excli range clear <file> --range <range> [--sheet <name>]
 `
 
 	if _, err := io.WriteString(w, helpText); err != nil {

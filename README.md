@@ -1,8 +1,8 @@
 # excli
 
-`excli` is a small command-line tool for reading local Excel `.xlsx` workbooks and printing predictable JSON.
+`excli` is a small command-line tool for reading and editing local Excel `.xlsx` workbooks while printing predictable JSON.
 
-Use it when you want to inspect spreadsheets from shell scripts, CI jobs, data-processing pipelines, or AI agents without automating Excel itself. `excli` is read-only, non-interactive, and intentionally focused on a compact set of workbook, sheet, cell, and range inspection commands.
+Use it when you want to inspect or make focused in-place updates to spreadsheets from shell scripts, CI jobs, data-processing pipelines, or AI agents without automating Excel itself. `excli` is non-interactive and intentionally focused on a compact set of workbook, sheet, cell, and range commands.
 
 ## Features
 
@@ -10,9 +10,11 @@ Use it when you want to inspect spreadsheets from shell scripts, CI jobs, data-p
 - List sheets, including hidden/visible status
 - Read individual cells, including formula text when present
 - Read rectangular ranges in row-major order
+- Set a single cell to a literal string value or formula
+- Clear cell or range value/formula content
 - Emit compact JSON by default, with `--pretty` for formatted output
 - Return structured JSON errors on `stderr` with stable exit codes
-- Avoid workbook mutation entirely
+- Apply mutation commands directly to the positional workbook path
 
 ## Installation
 
@@ -46,9 +48,25 @@ go build -o excli .
 | `excli sheet list <file>` | List all sheets in workbook order. |
 | `excli sheet info <file> --sheet <name>` | Show one sheet's metadata and used dimension. |
 | `excli cell read <file> --sheet <name> --cell <cell>` | Read a single A1-style cell reference. |
+| `excli cell set <file> --cell <cell> [--sheet <name>] --value <text>` | Write a literal string to one cell. |
+| `excli cell set <file> --cell <cell> [--sheet <name>] --formula <formula>` | Write formula text to one cell. A leading `=` is optional. |
+| `excli cell clear <file> --cell <cell> [--sheet <name>]` | Clear one cell's value/formula content. |
 | `excli range read <file> --sheet <name> --range <range>` | Read a rectangular A1-style range. |
+| `excli range clear <file> --range <range> [--sheet <name>]` | Clear value/formula content for every cell in a range. |
 
 All commands accept `--pretty` to format JSON output with two-space indentation.
+
+## Write behavior
+
+Mutation commands edit the positional `<file>` directly. Make your own copy first if you need a backup or rollback path.
+
+`cell set` can create a missing workbook. If `--sheet` is omitted, it writes to the workbook's active sheet. If `--sheet` names a missing sheet, `cell set` creates that sheet; for a brand-new workbook, the default sheet is renamed to the requested sheet.
+
+`--value` writes the supplied text as a literal string only. Values such as `001`, `true`, `-1`, or `=SUM(A1:A2)` are not inferred as numbers, booleans, or formulas.
+
+`--formula` writes formula text. You may include or omit one leading `=`; `=SUM(A1:A2)` and `SUM(A1:A2)` write the same formula. Empty formulas are usage errors, and formulas are not evaluated by `excli`.
+
+`cell clear` and `range clear` require an existing workbook and existing named sheet when `--sheet` is provided. If `--sheet` is omitted, they use the active sheet. Clear operations remove only cell value/formula content; they do not intentionally delete sheets, rows, columns, styles, comments, or other workbook structure.
 
 ## JSON behavior
 
@@ -63,14 +81,27 @@ All commands accept `--pretty` to format JSON output with two-space indentation.
 - Values are not cast to JSON numbers, booleans, dates, or nulls.
 - `formula` appears only when a cell has formula text.
 - `range read` returns every cell in the requested rectangle in row-major order, including empty cells.
+- Mutation success payloads contain stable `file`, `operation`, and `success` fields.
+
+Mutation commands return minimal success JSON:
+
+```json
+{
+  "file": "book.xlsx",
+  "operation": "cell_set",
+  "success": true
+}
+```
+
+`operation` is one of `cell_set`, `cell_clear`, or `range_clear`.
 
 ## Exit codes and errors
 
 | Exit code | Meaning |
 | --- | --- |
 | `0` | Success. Result JSON is written to `stdout`. |
-| `1` | Runtime error, such as an unreadable file or missing sheet. Error JSON is written to `stderr`. |
-| `2` | Usage or argument validation error, such as a missing flag or invalid cell reference. Error JSON is written to `stderr`. |
+| `1` | Runtime error, such as an unreadable file, missing workbook for clear commands, missing sheet for clear commands, or save failure. Error JSON is written to `stderr`. |
+| `2` | Usage or argument validation error, such as a missing flag, invalid cell/range reference, invalid `--value`/`--formula` combination, empty formula, unknown flag, or range over `10,000` cells. Error JSON is written to `stderr`. |
 
 Error payloads use this shape:
 
@@ -87,7 +118,7 @@ Error payloads use this shape:
 
 ## Scope
 
-`excli` currently focuses on reliable read-only inspection.
+`excli` currently focuses on reliable local workbook inspection and simple direct edits.
 
 Supported:
 
@@ -95,14 +126,20 @@ Supported:
 - Workbook, sheet, cell, and range reads
 - Sheet visibility and used sheet dimensions
 - Formula text for read cells
+- Single-cell literal string writes
+- Single-cell formula writes
+- Cell and range value/formula clearing
 
 Not supported:
 
-- Editing or writing workbooks
 - Legacy `.xls` files
 - Google Sheets, Office 365, or remote URLs
-- Styles, comments, rich text, charts, images, validations, pivot tables, or other advanced workbook artifacts
-- Reading ranges larger than `10,000` cells
+- Writing edited output to a separate destination file
+- Automatic backups or rollback workflow
+- Typed value inference for numbers, booleans, dates, or nulls
+- Formula evaluation or calculated-value caching
+- Styles, comments, rich text, charts, images, validations, pivot tables, or other advanced workbook artifact editing
+- Reading or clearing ranges larger than `10,000` cells
 
 ## Development
 

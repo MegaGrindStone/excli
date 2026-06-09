@@ -75,7 +75,10 @@ func TestRunWritesHelp(t *testing.T) {
 		"  excli sheet list <file>\n" +
 		"  excli sheet info <file> --sheet <name>\n" +
 		"  excli cell read <file> --sheet <name> --cell <cell>\n" +
-		"  excli range read <file> --sheet <name> --range <range>\n"
+		"  excli cell set <file> --cell <cell> [--sheet <name>] (--value <text> | --formula <formula>)\n" +
+		"  excli cell clear <file> --cell <cell> [--sheet <name>]\n" +
+		"  excli range read <file> --sheet <name> --range <range>\n" +
+		"  excli range clear <file> --range <range> [--sheet <name>]\n"
 	if stdout.String() != want {
 		t.Fatalf("stdout = %q, want %q", stdout.String(), want)
 	}
