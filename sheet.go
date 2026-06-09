@@ -125,14 +125,24 @@ func readSheetInfo(path, sheetName string) (sheetInfoResult, error) {
 		return sheetInfoResult{}, err
 	}
 
+	result, readErr := readSheetInfoFromWorkbook(file, path, sheetName)
+	closeErr := closeWorkbook(file)
+	if err := workbookReadError(readErr, closeErr); err != nil {
+		return sheetInfoResult{}, err
+	}
+
+	return result, nil
+}
+
+// readSheetInfoFromWorkbook builds sheet info from an opened workbook.
+func readSheetInfoFromWorkbook(file *excelize.File, path, sheetName string) (sheetInfoResult, error) {
 	index, name, err := resolveSheet(file, sheetName)
 	if err != nil {
 		return sheetInfoResult{}, err
 	}
 
-	sheet, readErr := buildSheetData(file, file.GetSheetMap(), index, name, true)
-	closeErr := closeWorkbook(file)
-	if err := workbookReadError(readErr, closeErr); err != nil {
+	sheet, err := buildSheetData(file, file.GetSheetMap(), index, name, true)
+	if err != nil {
 		return sheetInfoResult{}, err
 	}
 
