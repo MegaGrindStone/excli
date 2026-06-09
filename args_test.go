@@ -116,6 +116,17 @@ func TestParseArgs(t *testing.T) {
 			},
 		},
 		{
+			name: "cell clear valid with sheet",
+			args: []string{"cell", "clear", "book.xlsx", "--sheet", "Budget", "--cell", "c3"},
+			want: parsedArgs{
+				resource: "cell",
+				action:   "clear",
+				file:     "book.xlsx",
+				sheet:    "Budget",
+				cell:     "C3",
+			},
+		},
+		{
 			name: "range clear valid with sheet",
 			args: []string{"range", "clear", "book.xlsx", "--sheet", "Budget", "--range", "b2:a1"},
 			want: parsedArgs{

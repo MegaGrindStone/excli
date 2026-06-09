@@ -73,6 +73,20 @@ func runCellSet(cmd parsedArgs, stdout io.Writer, stderr io.Writer) int {
 	return exitSuccess
 }
 
+// runCellClear executes the cell clear command.
+func runCellClear(cmd parsedArgs, stdout io.Writer, stderr io.Writer) int {
+	result, err := clearCellResult(cmd.file, cmd.sheet, cmd.cell)
+	if err != nil {
+		return writeRuntimeError(stderr, cmd.pretty, err)
+	}
+
+	if err := writeJSON(stdout, result, cmd.pretty); err != nil {
+		return writeRuntimeError(stderr, cmd.pretty, err)
+	}
+
+	return exitSuccess
+}
+
 // readCellResult builds the cell read result for a file, sheet, and cell.
 func readCellResult(path, sheetName, cell string) (cellReadResult, error) {
 	file, err := openWorkbook(path)
@@ -122,6 +136,31 @@ func setCellResult(
 	}, nil
 }
 
+// clearCellResult clears one cell and returns the mutation success payload.
+func clearCellResult(path, sheetName, cell string) (mutationResult, error) {
+	file, err := openWorkbook(path)
+	if err != nil {
+		return mutationResult{}, err
+	}
+
+	mutationErr := clearCellInWorkbook(file, sheetName, cell)
+	var saveErr error
+	if mutationErr == nil {
+		saveErr = saveWorkbook(file, path, false)
+	}
+
+	closeErr := closeWorkbook(file)
+	if err := workbookWriteError(mutationErr, saveErr, closeErr); err != nil {
+		return mutationResult{}, err
+	}
+
+	return mutationResult{
+		File:      path,
+		Operation: operationCellClear,
+		Success:   true,
+	}, nil
+}
+
 // setCellInWorkbook applies a cell set mutation to an opened workbook.
 func setCellInWorkbook(
 	file *excelize.File,
@@ -139,6 +178,16 @@ func setCellInWorkbook(
 	}
 
 	return setCellValue(file, sheet, cell, value, formula, valueSet, formulaSet)
+}
+
+// clearCellInWorkbook applies a cell clear mutation to an opened workbook.
+func clearCellInWorkbook(file *excelize.File, sheetName, cell string) error {
+	sheet, err := resolveOptionalSheet(file, sheetName)
+	if err != nil {
+		return err
+	}
+
+	return clearCellValue(file, sheet, cell)
 }
 
 // setCellValue writes a literal string value or formula into one normalized cell.
@@ -173,6 +222,20 @@ func setCellValue(
 	}
 
 	return fmt.Errorf("missing cell set value or formula")
+}
+
+// clearCellValue clears one normalized cell's value and formula content.
+func clearCellValue(file *excelize.File, sheet, cell string) error {
+	normalized, err := normalizeCellRef(cell)
+	if err != nil {
+		return err
+	}
+
+	if err := file.SetCellValue(sheet, normalized, nil); err != nil {
+		return fmt.Errorf("clear cell value for %q in %q: %w", normalized, sheet, err)
+	}
+
+	return nil
 }
 
 // readCellResultFromWorkbook reads one cell from an opened workbook.

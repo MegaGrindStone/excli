@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -166,6 +167,88 @@ func TestRunCellSetReportsSaveErrors(t *testing.T) {
 	assertRunRuntimeErrorContains(t, args, "save workbook", path)
 }
 
+func TestRunCellClearClearsPlainValue(t *testing.T) {
+	t.Parallel()
+
+	path := copyFixtureWorkbook(t, basicFixture)
+	args := []string{"cell", "clear", path, "--sheet", "Data", "--cell", "B2"}
+
+	assertRunStdout(t, args, cellClearSuccessJSON(t, path))
+	assertWorkbookCellValue(t, path, "Data", "B2", "")
+	assertWorkbookCellFormula(t, path, "Data", "B2", "")
+	assertWorkbookCellValue(t, path, "Data", "A2", "Alpha")
+}
+
+func TestRunCellClearClearsFormula(t *testing.T) {
+	t.Parallel()
+
+	path := copyFixtureWorkbook(t, basicFixture)
+	args := []string{"cell", "clear", path, "--sheet", "Data", "--cell", "D2"}
+
+	assertRunStdout(t, args, cellClearSuccessJSON(t, path))
+	assertWorkbookCellValue(t, path, "Data", "D2", "")
+	assertWorkbookCellFormula(t, path, "Data", "D2", "")
+	assertWorkbookCellValue(t, path, "Data", "B2", "100")
+}
+
+func TestRunCellClearSucceedsForAlreadyEmptyCell(t *testing.T) {
+	t.Parallel()
+
+	path := copyFixtureWorkbook(t, basicFixture)
+	args := []string{"cell", "clear", path, "--sheet", "Data", "--cell", "C3"}
+
+	assertRunStdout(t, args, cellClearSuccessJSON(t, path))
+	assertWorkbookCellValue(t, path, "Data", "C3", "")
+	assertWorkbookCellFormula(t, path, "Data", "C3", "")
+}
+
+func TestRunCellClearUsesActiveSheetWhenSheetOmitted(t *testing.T) {
+	t.Parallel()
+
+	path := createTempWorkbook(t)
+	setArgs := []string{"cell", "set", path, "--cell", "A1", "--value", "active"}
+	clearArgs := []string{"cell", "clear", path, "--cell", "A1"}
+
+	assertRunStdout(t, setArgs, cellSetSuccessJSON(t, path))
+	assertRunStdout(t, clearArgs, cellClearSuccessJSON(t, path))
+	assertWorkbookCellValue(t, path, "Sheet1", "A1", "")
+	assertWorkbookSheets(t, path, []string{"Sheet1"})
+}
+
+func TestRunCellClearMissingWorkbookDoesNotCreateFile(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "missing.xlsx")
+	args := []string{"cell", "clear", path, "--cell", "A1"}
+
+	assertRunRuntimeErrorContains(t, args, "open workbook", path)
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("os.Stat error = %v, want missing file", err)
+	}
+}
+
+func TestRunCellClearMissingSheetDoesNotCreateSheet(t *testing.T) {
+	t.Parallel()
+
+	path := createTempWorkbook(t)
+	args := []string{"cell", "clear", path, "--sheet", "Missing", "--cell", "A1"}
+
+	assertRunError(t, args, exitRuntime, errorCodeRuntime, "sheet not found: \"Missing\"")
+	assertWorkbookSheets(t, path, []string{"Sheet1"})
+}
+
+func TestRunCellClearInvalidCellDoesNotMutateWorkbook(t *testing.T) {
+	t.Parallel()
+
+	path := createTempWorkbook(t)
+	setArgs := []string{"cell", "set", path, "--cell", "A1", "--value", "keep"}
+	clearArgs := []string{"cell", "clear", path, "--cell", "A0"}
+
+	assertRunStdout(t, setArgs, cellSetSuccessJSON(t, path))
+	assertRunError(t, clearArgs, exitUsage, errorCodeUsage, "invalid cell reference: A0")
+	assertWorkbookCellValue(t, path, "Sheet1", "A1", "keep")
+}
+
 func TestNormalizeCellRef(t *testing.T) {
 	t.Parallel()
 
@@ -221,6 +304,21 @@ func cellSetSuccessJSON(t *testing.T, path string) string {
 	jsonBytes, err := marshalJSON(mutationResult{
 		File:      path,
 		Operation: operationCellSet,
+		Success:   true,
+	}, false)
+	if err != nil {
+		t.Fatalf("marshalJSON returned error: %v", err)
+	}
+
+	return string(jsonBytes)
+}
+
+func cellClearSuccessJSON(t *testing.T, path string) string {
+	t.Helper()
+
+	jsonBytes, err := marshalJSON(mutationResult{
+		File:      path,
+		Operation: operationCellClear,
 		Success:   true,
 	}, false)
 	if err != nil {

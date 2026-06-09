@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -236,6 +237,22 @@ func createTempWorkbook(t *testing.T) string {
 		t.Fatalf("SaveAs returned error: %v", err)
 	}
 	closeTestWorkbook(t, file)
+
+	return path
+}
+
+func copyFixtureWorkbook(t *testing.T, fixture string) string {
+	t.Helper()
+
+	data, err := os.ReadFile(fixture)
+	if err != nil {
+		t.Fatalf("os.ReadFile returned error: %v", err)
+	}
+
+	path := filepath.Join(t.TempDir(), filepath.Base(fixture))
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatalf("os.WriteFile returned error: %v", err)
+	}
 
 	return path
 }

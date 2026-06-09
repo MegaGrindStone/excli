@@ -107,6 +107,8 @@ func dispatch(cmd parsedArgs, stdout, stderr io.Writer) int {
 		return runCellRead(cmd, stdout, stderr)
 	case cmd.resource == resourceCell && cmd.action == actionSet:
 		return runCellSet(cmd, stdout, stderr)
+	case cmd.resource == resourceCell && cmd.action == actionClear:
+		return runCellClear(cmd, stdout, stderr)
 	case cmd.resource == resourceRange && cmd.action == actionRead:
 		return runRangeRead(cmd, stdout, stderr)
 	default:
