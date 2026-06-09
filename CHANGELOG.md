@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Added excli agent skill definition and command reference at `skills/excli/`.
+
 ## [0.1.0] - 2026-06-10
 
 ### Added

@@ -52,6 +52,16 @@ Binaries built from source with `go build` or `go install` print `dev` from `exc
 go build -ldflags "-X main.version=v0.1.0" -o excli .
 ```
 
+## AI Agent Skill
+
+This repository includes an [Agent Skill](https://agentskills.io/) in [`skills/excli`](skills/excli) for compatible AI agents. Install the `excli` binary first, verify it is on your `PATH` with `excli version`, then install the skill with the `skills` CLI:
+
+```bash
+npx skills add MegaGrindStone/excli
+```
+
+The skill teaches agents how to use `excli` for safe workbook discovery, JSON parsing, focused in-place edits, and post-edit verification.
+
 ## Commands
 
 | Command | Description |
